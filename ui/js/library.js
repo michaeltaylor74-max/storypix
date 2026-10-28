@@ -63,9 +63,10 @@ function updateThumbs() {
 
 function render() {
   if (!root) return;
-  const sig = `${tab}|${filter}|${sort}|${thumbSize}|${app.project.media.length}|${[...mediaUsage()].join()}|${[...app.libSel].join()}|${app.project.music.map((m) => m.id + m.volume + m.trimStart).join()}|${app.project.slides.length}`;
+  const sig = `${tab}|${filter}|${sort}|${thumbSize}|${app.project.media.length}|${[...mediaUsage()].join()}|${app.project.music.map((m) => m.id + m.volume + m.trimStart).join()}|${app.project.slides.length}`;
   if (sig === lastSig && tab === "media") return;
   lastSig = sig;
+  const prevScroll = root.querySelector(".lib-grid")?.scrollTop || 0;
   const tabs = h("div", { class: "tabs" },
     h("button", { class: `tab ${tab === "media" ? "on" : ""}`, onclick: () => emit("libtab", "media") }, "📷 Photos & Videos"),
     h("button", { class: `tab ${tab === "music" ? "on" : ""}`, onclick: () => emit("libtab", "music") }, "🎵 Music"));
@@ -123,12 +124,12 @@ function render() {
         for (let i = Math.min(a, b); i <= Math.max(a, b); i++) app.libSel.add(list[i].id);
       } else { app.libSel.clear(); app.libSel.add(m.id); }
       lastClicked = m.id;
-      render();
+      refreshSelection(list);
     });
     item.addEventListener("dblclick", () => insertSlides([slideForMedia([m.id])]));
     item.addEventListener("contextmenu", (e) => {
       e.preventDefault();
-      if (!app.libSel.has(m.id)) { app.libSel.clear(); app.libSel.add(m.id); render(); }
+      if (!app.libSel.has(m.id)) { app.libSel.clear(); app.libSel.add(m.id); refreshSelection(list); }
       contextMenu(e.clientX, e.clientY, [
         { label: "Add to show — one per slide", action: () => addSelected(list, 1) },
         { label: "Add to show — as collage(s)…", action: () => addSelected(list, 0) },
@@ -139,14 +140,26 @@ function render() {
     });
     grid.append(item);
   }
-  const selBar = app.libSel.size
+  const selBar = makeSelBar(list);
+  body.append(tools, grid, selBar);
+  grid.scrollTop = prevScroll;
+}
+
+function refreshSelection(list) {
+  root.querySelectorAll(".lib-item").forEach((el) => el.classList.toggle("sel", app.libSel.has(el.dataset.id)));
+  const old = root.querySelector(".sel-bar");
+  if (old) old.replaceWith(makeSelBar(list));
+  lastSig = "";
+}
+
+function makeSelBar(list) {
+  return app.libSel.size
     ? h("div", { class: "sel-bar" },
       h("span", {}, `${app.libSel.size} selected`),
       h("button", { class: "btn small primary", onclick: () => addSelected(list, 1) }, "Add as slides"),
       h("button", { class: "btn small", onclick: () => addSelected(list, 0) }, "Add as collage"),
-      h("button", { class: "btn small ghost", title: "Clear selection", onclick: () => { app.libSel.clear(); render(); } }, "✕"))
+      h("button", { class: "btn small ghost", title: "Clear selection", onclick: () => { app.libSel.clear(); refreshSelection(list); } }, "✕"))
     : h("div", { class: "sel-bar hint" }, "Click to select · Ctrl/Shift for many · drag onto a slide or the storyboard");
-  body.append(tools, grid, selBar);
 }
 
 async function addSelected(list, perSlide) {

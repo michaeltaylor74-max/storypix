@@ -123,13 +123,14 @@ h4.sub { margin: 12px 0 4px; font-size: 12px; }
 .lib-tools { flex: none; }
 .lib-grid {
   flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumb), 1fr)); gap: 6px;
-  align-content: start; padding: 4px 2px 8px; margin: 0 -4px; min-height: 120px;
+  align-content: start; grid-auto-rows: max-content; padding: 4px 2px 8px; margin: 0 -4px; min-height: 120px;
 }
 .lib-folder { grid-column: 1 / -1; font-weight: 600; color: var(--accent); padding: 8px 2px 2px; font-size: 12px; }
-.lib-item { position: relative; aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: #0b0c10; cursor: grab; border: 2px solid transparent; }
+.lib-item { position: relative; align-self: start; border-radius: 6px; overflow: hidden; background: #0b0c10; cursor: grab; border: 2px solid transparent; }
+.lib-item::before { content: ""; display: block; padding-top: 100%; }
 .lib-item:hover { border-color: var(--line2); }
 .lib-item.sel { border-color: var(--accent); }
-.lib-thumb { width: 100%; height: 100%; display: grid; place-items: center; }
+.lib-thumb { position: absolute; inset: 0; display: grid; place-items: center; }
 .lib-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 .badge { position: absolute; font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(0,0,0,.72); }
 .badge.vid { left: 4px; bottom: 4px; }
