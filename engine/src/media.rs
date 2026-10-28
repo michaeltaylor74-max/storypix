@@ -322,7 +322,7 @@ pub fn load_image_scaled(path: &Path, max_w: u32, max_h: u32) -> Result<DynamicI
     }
 }
 
-/// Mark a cached preview as recently used so the 45-day clean-up keeps it.
+/// Mark a cached preview as recently used so the 30-day clean-up keeps it.
 fn touch(p: &Path) {
     if let Ok(f) = std::fs::File::options().write(true).open(p) {
         let _ = f.set_modified(std::time::SystemTime::now());

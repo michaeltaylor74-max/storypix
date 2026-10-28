@@ -294,7 +294,7 @@ function cacheRow() {
     const items = app.project.media.filter((m) => !m.missing);
     if (items.length) api.requestProxies(items).catch(() => {});
   } }, "Clear preview copies");
-  api.cacheInfo().then((b) => { lbl.textContent = `Preview copies of photos & videos on this computer: ${(b / 1048576).toFixed(0)} MB (unused ones are deleted automatically after 45 days).`; }).catch(() => { lbl.textContent = ""; });
+  api.cacheInfo().then((b) => { lbl.textContent = `Preview copies of photos & videos on this computer: ${(b / 1048576).toFixed(0)} MB (unused ones are deleted automatically after 30 days).`; }).catch(() => { lbl.textContent = ""; });
   return h("div", { class: "row wrap" }, lbl, btn);
 }
 

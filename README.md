@@ -24,7 +24,7 @@ SHA-256 fingerprint of every file. To check yours, run this in PowerShell and co
 - The app never connects to the internet and sends nothing anywhere. (The installer may
   download Microsoft's WebView2 component if your PC doesn't already have it.)
 - Your photos stay where they are; small preview copies are kept in the app's cache folder
-  and deleted automatically after 45 days unused (or straight away via Help → Clear preview copies).
+  and deleted automatically after 30 days unused (or straight away via Help → Clear preview copies).
 - If a show file refers to photos on another computer or network share, the app asks before
   connecting. Web addresses are never followed.
 

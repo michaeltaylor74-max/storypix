@@ -427,7 +427,7 @@ fn main() {
             let _ = std::fs::create_dir_all(&data_dir);
             {
                 let c = cache_dir.clone();
-                std::thread::spawn(move || prune_cache(&c, 45));
+                std::thread::spawn(move || prune_cache(&c, 30));
             }
             let (itx, irx) = channel::<MediaItem>();
             let (vtx, vrx) = channel::<MediaItem>();
