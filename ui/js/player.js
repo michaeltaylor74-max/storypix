@@ -156,7 +156,13 @@ function tick() {
     touch(spec.b, spec.bLt, true);
     if (spec.a) touch(spec.a[0], spec.a[1], true);
     const nx = spec.b + 1;
-    if (nx < p.slides.length && tl.starts[nx] - t < 2.5) touch(nx, 0, false); // preload
+    if (nx < p.slides.length && tl.starts[nx] - t < 2.5) touch(nx, 0, false); // preload videos
+    for (let j = spec.b + 1; j < Math.min(p.slides.length, spec.b + 3); j++) {
+      for (const tile of p.slides[j].tiles) {
+        const m = tile.mediaId && app.mediaById.get(tile.mediaId);
+        if (m?.kind === "image") assets.image(m, "proxy"); // warm the image cache
+      }
+    }
   }
   for (const [k, v] of videos) if (!active.has(k)) { v.pause(); v.removeAttribute("src"); v.load(); videos.delete(k); }
 
