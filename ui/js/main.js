@@ -277,6 +277,7 @@ function showHelp() {
     body: h("div", {},
       h("p", {}, "Quick start: ✨ Auto Build → pick your folder and songs → Build. Then tweak any slide, press ▶ Preview, and ⬇ Export video when you're happy."),
       h("table", { class: "keys" }, rows.map(([k, v]) => h("tr", {}, h("td", {}, h("kbd", {}, k)), h("td", {}, v)))),
+      h("p", { class: "muted small" }, "Uses FFmpeg (ffmpeg.org, GPL-3.0) to read and create video. App code © 2026 Michael Taylor, MIT License."),
       h("p", { class: "muted small" }, "Your work is saved automatically every few seconds in case anything goes wrong. Save (Ctrl+S) to keep a .psproj file you can reopen or copy to another computer along with the photos.")),
     buttons: [{ label: "Close", value: true, primary: true }],
   });

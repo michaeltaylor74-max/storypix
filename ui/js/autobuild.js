@@ -364,7 +364,7 @@ function renderLeft(el, rr) {
 
     h("h3", { class: "step" }, h("span", {}, "4"), "Titles"),
     h("div", { class: "row" }, h("span", { class: "lbl" }, "Opening title"), h("input", { type: "text", class: "grow", value: W.openTitle, placeholder: "(none)", onchange: (e) => set("openTitle", e.target.value) })),
-    h("div", { class: "row" }, h("span", { class: "lbl" }, "Subtitle"), h("input", { type: "text", class: "grow", value: W.openSub, placeholder: "e.g. Noosa Adventist College", onchange: (e) => set("openSub", e.target.value) })),
+    h("div", { class: "row" }, h("span", { class: "lbl" }, "Subtitle"), h("input", { type: "text", class: "grow", value: W.openSub, placeholder: "e.g. your school's name", onchange: (e) => set("openSub", e.target.value) })),
     h("div", { class: "row" }, h("span", { class: "lbl" }, "Closing slide"), h("input", { type: "text", class: "grow", value: W.closeTitle, placeholder: "(none)", onchange: (e) => set("closeTitle", e.target.value) })),
   ].filter(Boolean));
 }

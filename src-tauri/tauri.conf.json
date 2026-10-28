@@ -30,6 +30,8 @@
     "targets": ["nsis"],
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.png", "icons/icon.ico"],
     "externalBin": ["binaries/ffmpeg", "binaries/ffprobe"],
+    "resources": { "../LICENSE": "LICENSE.txt", "../THIRD-PARTY-NOTICES.md": "THIRD-PARTY-NOTICES.md", "../FFMPEG-LICENSE.txt": "FFMPEG-LICENSE.txt" },
+    "copyright": "Copyright (c) 2026 Michael Taylor. MIT License.",
     "shortDescription": "Photo & video slideshow maker",
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper" },

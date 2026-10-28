@@ -4,3 +4,4 @@ src-tauri/binaries/*
 !src-tauri/binaries/.gitkeep
 node_modules/
 *.tmp
+/FFMPEG-LICENSE.txt
