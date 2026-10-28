@@ -133,7 +133,7 @@ function render() {
       contextMenu(e.clientX, e.clientY, [
         { label: "Add to show — one per slide", action: () => addSelected(list, 1) },
         { label: "Add to show — as collage(s)…", action: () => addSelected(list, 0) },
-        { label: "Show in Explorer", action: () => api.reveal(m.path) },
+        m.missing ? null : { label: "Show in Explorer", action: () => api.reveal(m.path) },
         "-",
         { label: "Remove from library", action: () => removeSelected() },
       ]);

@@ -30,6 +30,8 @@ pub struct ExportRequest {
     /// x264 CRF (lower = better)
     pub crf: u32,
     pub preset: String,
+    /// The user has agreed to use files on network shares (\\\\server\\share).
+    pub allow_network: bool,
 }
 impl Default for ExportRequest {
     fn default() -> Self {
@@ -42,6 +44,7 @@ impl Default for ExportRequest {
             fps: 30,
             crf: 19,
             preset: "medium".into(),
+            allow_network: false,
         }
     }
 }
@@ -188,7 +191,8 @@ pub fn export(req: &ExportRequest, cancel: &AtomicBool, progress: impl Fn(Progre
     // Only ever read local files that exist; anything else is treated as missing.
     let mut cleaned = req.project.clone();
     for m in &mut cleaned.media {
-        if !media::is_local_media_path(&m.path) || !Path::new(&m.path).is_file() {
+        let declined_share = media::is_network(&m.path) && !req.allow_network;
+        if declined_share || !media::is_local_media_path(&m.path) || !Path::new(&m.path).is_file() {
             m.path.clear();
         }
     }

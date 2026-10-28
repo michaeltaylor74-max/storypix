@@ -1,5 +1,6 @@
 // App bootstrap: top bar, file handling, shortcuts, autosave, recovery.
 import { h, toast, modal, confirmBox } from "./ui.js";
+import { netHosts } from "./state.js";
 import { app, on, emit, change, undo, redo, canUndo, canRedo, setProject, currentSlide, currentTile, currentText, selectSlide, selectedSlides, deleteSlides, duplicateSlides, selectItem, reindex } from "./state.js";
 import { api, listen, isTauri } from "./backend.js";
 import { assets } from "./assets.js";
@@ -150,8 +151,10 @@ async function loadProject(p, path, dirty) {
 async function checkMissing() {
   const media = app.project.media;
   if (!media.length) return;
-  let exists = await api.pathsExist(media.map((m) => m.path));
+  const preTrusted = media.length && media.every((m) => netHosts.trusted(m.path));
+  let exists = await api.pathsExist(media.map((m) => m.path), preTrusted);
   const net = media.filter((m, i) => exists[i] === null);
+  app.networkAllowed = preTrusted;
   if (net.length) {
     const hosts = [...new Set(net.map((m) => m.path.replace(/^[\\/]+/, "").split(/[\\/]/)[0]))];
     const ok = await modal({
@@ -160,7 +163,11 @@ async function checkMissing() {
         h("p", { class: "muted" }, "Only connect if you know and trust where this show came from (for example your school's shared drive).")),
       buttons: [{ label: "Don't connect", value: false }, { label: "Connect", value: true, primary: true }],
     });
-    if (ok) exists = await api.pathsExist(media.map((m) => m.path), true);
+    if (ok) {
+      exists = await api.pathsExist(media.map((m) => m.path), true);
+      netHosts.trust(hosts.map((x) => x.toLowerCase()));
+      app.networkAllowed = true;
+    }
   }
   let missing = media.filter((m, i) => !exists[i]);
   media.forEach((m, i) => { m.missing = !exists[i]; });
@@ -224,7 +231,7 @@ async function startup() {
       if (v) await loadProject(a.project, a.filePath || null, true);
       else api.clearAutosave().catch(() => {});
     } else if (a.filePath) {
-      const [ok] = await api.pathsExist([a.filePath]);
+      const [ok] = await api.pathsExist([a.filePath], true); // the user saved this show themselves
       if (ok) await openShow(a.filePath);
     }
   } catch (e) {

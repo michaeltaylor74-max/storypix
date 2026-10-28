@@ -149,7 +149,7 @@ function tick() {
     if (!s) return;
     for (const tile of s.tiles) {
       const m = tile.mediaId && app.mediaById.get(tile.mediaId);
-      if (m?.kind === "video") { ensureVideo(s, tile, lt, playing); active.add(videoKey(s, tile)); }
+      if (m?.kind === "video" && !m.missing) { ensureVideo(s, tile, lt, playing); active.add(videoKey(s, tile)); }
     }
   };
   if (spec) {
@@ -172,7 +172,7 @@ function tick() {
     const local = t - it.start;
     const on = local >= 0 && local < it.len;
     let a = audios.get(it.track.id);
-    if (!on) { if (a && !a.paused) a.pause(); continue; }
+    if (!on || it.media.missing) { if (a && !a.paused) a.pause(); continue; }
     if (!a) { a = new Audio(assets.audioSrc(it.media)); a.preload = "auto"; audios.set(it.track.id, a); }
     let g = s.musicVolume * it.track.volume;
     if (it.fadeIn > 0) g *= Math.min(1, local / it.fadeIn);

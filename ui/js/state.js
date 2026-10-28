@@ -4,6 +4,15 @@ import { api } from "./backend.js";
 import { assets } from "./assets.js";
 import { bestLayout } from "./layoutfit.js";
 
+// Network shares (\\server\share) the user has approved, remembered on this PC.
+const hostOf = (p) => (/^(\\\\|\/\/)/.test(p || "") ? p.replace(/^[\\/]+/, "").split(/[\\/]/)[0].toLowerCase() : null);
+export const netHosts = {
+  host: hostOf,
+  list() { try { return JSON.parse(localStorage.getItem("ps.trustedHosts") || "[]"); } catch { return []; } },
+  trust(hosts) { try { localStorage.setItem("ps.trustedHosts", JSON.stringify([...new Set([...this.list(), ...hosts.filter(Boolean)])])); } catch {} },
+  trusted(p) { const h = hostOf(p); return !h || this.list().includes(h); },
+};
+
 export const app = {
   project: defaultProject(),
   filePath: null,
@@ -135,6 +144,7 @@ export function slideDefaults() {
 // ---------- media
 export async function addMediaItems(items) {
   const byPath = new Map(app.project.media.map((m) => [m.path, m]));
+  netHosts.trust(items.map((it) => hostOf(it.path))); // the user picked these files themselves
   const added = [], all = [];
   for (const it of items) {
     const ex = byPath.get(it.path);

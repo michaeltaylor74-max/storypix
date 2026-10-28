@@ -1,11 +1,12 @@
 // ✂ Video trimmer: watch the clip, drag the yellow handles (or type times) to keep just the part you want.
-import { h, modal, timeInput, fmtSecs } from "./ui.js";
+import { h, modal, timeInput, fmtSecs, toast } from "./ui.js";
 import { app, change } from "./state.js";
 import { assets } from "./assets.js";
 
 export async function openTrim(slide, tile) {
   const m = app.mediaById.get(tile.mediaId);
   if (!m || m.kind !== "video") return;
+  if (m.missing) { toast("This video can't be found, so it can't be trimmed.", "warn"); return; }
   const dur = Math.max(0.1, m.duration);
   let start = tile.trimStart || 0;
   let end = Math.min(tile.trimEnd ?? dur, dur);

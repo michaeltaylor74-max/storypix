@@ -22,8 +22,9 @@ export const assets = {
   thumbPath(m) { return proxies.get(m.id)?.thumb || m.thumb || null; },
   proxyPath(m) { return proxies.get(m.id)?.proxy || m.proxy || null; },
   /** Video preview src: proxy if ready else original */
-  videoSrc(m) { return fileSrc(this.proxyPath(m) || m.path); },
-  audioSrc(m) { return fileSrc(this.proxyPath(m) || m.path); },
+  // Missing / not-approved files are never loaded (that could reach out to a network share).
+  videoSrc(m) { return m.missing ? "" : fileSrc(this.proxyPath(m) || m.path); },
+  audioSrc(m) { return m.missing ? "" : fileSrc(this.proxyPath(m) || m.path); },
   /** Returns a loaded HTMLImageElement or null (and starts loading). */
   image(m, quality = "proxy") {
     let path = null;

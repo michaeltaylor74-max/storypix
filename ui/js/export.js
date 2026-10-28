@@ -1,6 +1,6 @@
 // Export dialog: rasterises text layers, then hands the project to the Rust renderer.
 import { h, modal, toast, confirmBox } from "./ui.js";
-import { app } from "./state.js";
+import { app, netHosts } from "./state.js";
 import { api, listen } from "./backend.js";
 import { computeTimeline, fmtTime, slideKind, musicSchedule } from "./model.js";
 import { drawTexts } from "./render.js";
@@ -68,7 +68,7 @@ export async function openExport() {
           if (!f) return false;
           pathInp.value = /\.mp4$/i.test(f) ? f : f + ".mp4";
         }
-        const [exists] = await api.pathsExist([pathInp.value.trim()]).catch(() => [false]);
+        const [exists] = await api.pathsExist([pathInp.value.trim()], true).catch(() => [false]);
         if (exists) {
           const ok = await confirmBox("Replace video?", `${pathInp.value.trim().split(/[\\/]/).pop()} already exists. Replace it with this export?`, "Replace");
           if (!ok) return false;
@@ -130,7 +130,8 @@ async function runExport({ path, w, h: hh, fps, crf, preset }) {
     };
   });
   try {
-    await api.startExport({ project, overlays, outPath: path, width: w, height: hh, fps, crf, preset });
+    const allowNetwork = !!app.networkAllowed || project.media.every((m) => netHosts.trusted(m.path));
+    await api.startExport({ project, overlays, outPath: path, width: w, height: hh, fps, crf, preset, allowNetwork });
   } catch (e) {
     closeFn(); toast(`Export failed to start: ${e}`, "error", 8000); return;
   }
