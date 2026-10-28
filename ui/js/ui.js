@@ -118,12 +118,71 @@ export function debounce(fn, ms) {
 }
 
 /** Labeled slider row helper returning [row, input] */
-export function slider({ label, min, max, step = 0.01, value, fmt = (v) => v, oninput, onchange }) {
-  const out = h("span", { class: "val" }, fmt(value));
+/** Parse what someone typed: "5", "5s", "80%", "1:05.5", "-3°" … */
+export function parseTyped(text, percent) {
+  const t = String(text).trim().replace(",", ".");
+  if (!t) return NaN;
+  if (t.includes(":")) {
+    const parts = t.split(":").map((x) => parseFloat(x.replace(/[^0-9.\-]/g, "")));
+    if (parts.some((x) => isNaN(x))) return NaN;
+    return parts.reduce((a, b) => a * 60 + b, 0);
+  }
+  const n = parseFloat(t.replace(/[^0-9.\-]/g, ""));
+  if (isNaN(n)) return NaN;
+  return percent ? n / 100 : n;
+}
+
+/** Slider with a type-in box. Returns the row element. */
+export function slider({ label, min, max, step = 0.01, value, fmt = (v) => v, oninput, onchange, typedMax, typedMin }) {
+  const percent = String(fmt(1)).includes("%");
+  const box = h("input", { type: "text", class: "val-input", value: fmt(value), title: "Type a value and press Enter" });
   const inp = h("input", { type: "range", min, max, step, value });
-  inp.addEventListener("input", () => { out.textContent = fmt(+inp.value); oninput?.(+inp.value); });
+  inp.addEventListener("input", () => { box.value = fmt(+inp.value); oninput?.(+inp.value); });
   inp.addEventListener("change", () => onchange?.(+inp.value));
-  return h("label", { class: "row slider" }, h("span", { class: "lbl" }, label), inp, out);
+  const commit = () => {
+    let v = parseTyped(box.value, percent);
+    if (isNaN(v)) { box.value = fmt(+inp.value); return; }
+    v = Math.min(typedMax ?? max, Math.max(typedMin ?? min, v));
+    if (step >= 1) v = Math.round(v); else v = Math.round(v * 1000) / 1000;
+    inp.value = v;
+    box.value = fmt(v);
+    oninput?.(v);
+    onchange?.(v);
+  };
+  box.addEventListener("focus", () => box.select());
+  box.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); box.blur(); }
+    if (e.key === "Escape") { box.value = fmt(+inp.value); box.blur(); }
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      const d = (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? step * 10 : step);
+      const cur = +inp.value;
+      box.value = fmt(Math.min(typedMax ?? max, Math.max(typedMin ?? min, cur + d)));
+      commit();
+    }
+    e.stopPropagation();
+  });
+  box.addEventListener("change", commit);
+  return h("div", { class: "row slider" }, h("span", { class: "lbl" }, label), inp, box);
+}
+
+/** A time box (m:ss.s or seconds). value null → shows placeholder. */
+export function timeInput({ value, placeholder = "", onset, allowEmpty = false, min = 0, max = Infinity, title = "" }) {
+  const show = (v) => (v === null || v === undefined ? "" : fmtSecs(v));
+  const box = h("input", { type: "text", class: "time-input", value: show(value), placeholder, title: title || "Type seconds (e.g. 12) or minutes:seconds (e.g. 1:05)" });
+  box.addEventListener("focus", () => box.select());
+  box.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); box.blur(); } e.stopPropagation(); });
+  box.addEventListener("change", () => {
+    if (box.value.trim() === "" && allowEmpty) { onset(null); return; }
+    const v = parseTyped(box.value, false);
+    if (isNaN(v)) { box.value = show(value); return; }
+    onset(Math.min(max, Math.max(min, v)));
+  });
+  return box;
+}
+export function fmtSecs(v) {
+  const m = Math.floor(v / 60), s = v - m * 60;
+  return `${m}:${s.toFixed(1).padStart(4, "0")}`;
 }
 
 export function select(options, value, onchange) {

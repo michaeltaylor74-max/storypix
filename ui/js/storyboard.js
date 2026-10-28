@@ -3,6 +3,7 @@ import { h, beginDrag, contextMenu, toast, modal } from "./ui.js";
 import { app, on, emit, change, selectSlide, selectedSlides, insertSlides, deleteSlides, duplicateSlides, slideForMedia, slideDefaults, applyLayout } from "./state.js";
 import { drawSlide } from "./render.js";
 import { assets } from "./assets.js";
+import { openTrim } from "./trim.js";
 import { TRANSITIONS, newSlide, newTitleSlide, computeTimeline, fmtTime, slideKind, TRANSITION_SETS, LAYOUTS } from "./model.js";
 
 let root, strip, cardW = 168;
@@ -121,7 +122,9 @@ function render() {
       e.preventDefault();
       if (!app.sel.slides.has(s.id)) selectSlide(s.id);
       const ids = selectedSlides().map((x) => x.id);
+      const vt = s.tiles.find((t) => app.mediaById.get(t.mediaId)?.kind === "video");
       contextMenu(e.clientX, e.clientY, [
+        vt ? { label: "✂ Trim video…", action: () => openTrim(s, vt) } : null,
         { label: "Duplicate", action: () => duplicateSlides(ids) },
         { label: "Delete", action: () => deleteSlides(ids) },
         "-",

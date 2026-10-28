@@ -261,20 +261,26 @@ export function hash32(i) {
   h ^= h >>> 16;
   return (h >>> 0) / 4294967296;
 }
-/** Music playlist placement: [{track, media, start, len, last}] */
+/** Music playlist placement: [{track, media, start, len, fadeIn, fadeOut}] (mirrors engine audio.rs) */
 export function musicSchedule(project, mediaById) {
   const cf = Math.max(0, project.settings.musicCrossfade);
   const list = project.music.map((t) => ({ t, m: mediaById.get(t.mediaId) })).filter((x) => x.m);
   const out = [];
   let pos = 0;
-  list.forEach(({ t, m }, j) => {
+  for (const { t, m } of list) {
     const end = Math.min(t.trimEnd ?? m.duration, m.duration);
     const len = Math.max(0, end - t.trimStart);
-    if (len <= 0.05) return;
-    const last = j === list.length - 1;
-    out.push({ track: t, media: m, start: pos, len, first: out.length === 0, last });
-    pos += len - (last ? 0 : cf);
-  });
+    if (len <= 0.05) continue;
+    const delay = Math.max(0, t.delay || 0);
+    const prev = out[out.length - 1];
+    const cross = !!prev && delay === 0 && cf > 0;
+    const base = cross ? pos - Math.min(cf, len / 2, prev.len / 2) : pos;
+    const start = base + delay;
+    const fadeIn = cross ? pos - base : t.trimStart > 0.3 ? 1 : 0;
+    if (cross) prev.fadeOut = pos - base;
+    out.push({ track: t, media: m, start, base, len, fadeIn, fadeOut: t.trimEnd != null ? 0.5 : 0 });
+    pos = start + len;
+  }
   return { items: out, total: pos };
 }
 export function slideKind(project, s, mediaById) {

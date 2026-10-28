@@ -6,6 +6,7 @@ import { bestLayout } from "./layoutfit.js";
 import { addTextBox, addPhotoBox } from "./editor.js";
 import { fileSrc } from "./backend.js";
 import { assets } from "./assets.js";
+import { openTrim } from "./trim.js";
 
 let root, layoutCount = null;
 
@@ -97,6 +98,7 @@ function tilePanel(s, t) {
   if (isVideo) {
     const end = t.trimEnd ?? m.duration;
     kids.push(h("h4", { class: "sub" }, "🎬 Video clip"));
+    kids.push(h("button", { class: "btn primary small", onclick: () => openTrim(s, t) }, "✂ Trim video…"));
     kids.push(slider({ label: "Start", min: 0, max: Math.max(0, m.duration - 0.5), step: 0.1, value: t.trimStart, fmt: (v) => fmtTime(v, true), oninput: live((v) => { t.trimStart = Math.min(v, (t.trimEnd ?? m.duration) - 0.3); }), onchange: endGesture }));
     kids.push(slider({ label: "End", min: 0.5, max: m.duration, step: 0.1, value: end, fmt: (v) => fmtTime(v, true), oninput: live((v) => { t.trimEnd = v >= m.duration - 0.05 ? null : Math.max(v, t.trimStart + 0.3); }), onchange: endGesture }));
     const clipLen = Math.max(0.3, (t.trimEnd ?? m.duration) - t.trimStart);
@@ -156,7 +158,7 @@ function slidePanel(s) {
 
   // timing
   out.append(section("Timing",
-    slider({ label: "Show for", min: 1, max: 30, step: 0.1, value: s.duration, fmt: (v) => `${v.toFixed(1)}s`, oninput: live((v) => targets().forEach((x) => { x.duration = v; })), onchange: endGesture }),
+    slider({ label: "Show for", min: 1, max: 30, step: 0.1, typedMax: 600, value: s.duration, fmt: (v) => `${v.toFixed(1)}s`, oninput: live((v) => targets().forEach((x) => { x.duration = v; })), onchange: endGesture }),
     kind.hasVideo && !multi ? h("p", { class: "muted small" }, "Tip: select the video box for clip trimming and ‘Fit slide to clip’.") : null));
 
   // transition

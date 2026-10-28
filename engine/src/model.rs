@@ -208,10 +208,12 @@ pub struct MusicTrack {
     pub trim_start: f64,
     pub trim_end: Option<f64>,
     pub volume: f64,
+    /// Extra seconds of silence before this song starts (first song: offset into the show).
+    pub delay: f64,
 }
 impl Default for MusicTrack {
     fn default() -> Self {
-        Self { id: String::new(), media_id: String::new(), trim_start: 0.0, trim_end: None, volume: 1.0 }
+        Self { id: String::new(), media_id: String::new(), trim_start: 0.0, trim_end: None, volume: 1.0, delay: 0.0 }
     }
 }
 

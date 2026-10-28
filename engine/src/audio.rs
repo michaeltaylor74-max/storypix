@@ -25,42 +25,32 @@ pub fn mix(project: &Project, tl: &Timeline, cancel: &AtomicBool, mut progress: 
         env[i] * (1.0 - f) + env[i + 1] * f
     };
     let s = &project.settings;
-    let cf = s.music_crossfade.max(0.0);
     let fade_out = s.music_fade_out.max(s.end_fade).max(0.1);
-    let tracks: Vec<_> = project
-        .music
-        .iter()
-        .filter_map(|t| project.media(&t.media_id).map(|m| (t, m)))
-        .collect();
-    let mut pos = 0.0f64;
-    let jobs = (tracks.len() + 1) as f64;
-    for (j, (track, media)) in tracks.iter().enumerate() {
-        if pos >= total || cancel.load(Ordering::Relaxed) {
+    let sched = music_schedule(project);
+    let jobs = (sched.len() + 1) as f64;
+    for (j, it) in sched.iter().enumerate() {
+        if it.start >= total || cancel.load(Ordering::Relaxed) {
             break;
         }
-        let end = track.trim_end.unwrap_or(media.duration).min(media.duration.max(0.0));
-        let len = (end - track.trim_start).max(0.0);
-        if len <= 0.05 {
-            continue;
-        }
-        let want = len.min(total - pos + cf + 0.1);
-        let samples = decode_audio(Path::new(&media.path), track.trim_start, Some(want))?;
+        let want = it.len.min(total - it.start + 0.1);
+        let samples = decode_audio(Path::new(&it.path), it.trim_start, Some(want))?;
         let frames = samples.len() / 2;
-        let last = j + 1 == tracks.len();
-        let g = (s.music_volume * track.volume) as f32;
-        let start = (pos * SR as f64) as usize;
+        let g = (s.music_volume * it.volume) as f32;
+        let start = (it.start * SR as f64) as usize;
+        let flen = frames as f64 / SR as f64;
         for i in 0..frames {
             let o = start + i;
             if o >= n {
                 break;
             }
             let t = o as f64 / SR as f64;
+            let local = i as f64 / SR as f64;
             let mut a = g;
-            if j > 0 && cf > 0.0 {
-                a *= ((i as f64 / SR as f64) / cf).min(1.0) as f32;
+            if it.fade_in > 0.0 {
+                a *= (local / it.fade_in).min(1.0) as f32;
             }
-            if !last && cf > 0.0 {
-                a *= (((frames - i) as f64 / SR as f64) / cf).min(1.0) as f32;
+            if it.fade_out > 0.0 {
+                a *= ((it.len.min(flen) - local) / it.fade_out).clamp(0.0, 1.0) as f32;
             }
             if t > total - fade_out {
                 a *= ((total - t) / fade_out).clamp(0.0, 1.0) as f32;
@@ -69,7 +59,6 @@ pub fn mix(project: &Project, tl: &Timeline, cancel: &AtomicBool, mut progress: 
             buf[o * 2] += samples[i * 2] * a;
             buf[o * 2 + 1] += samples[i * 2 + 1] * a;
         }
-        pos += frames as f64 / SR as f64 - if last { 0.0 } else { cf };
         progress((j + 1) as f64 / jobs);
     }
 
@@ -130,6 +119,55 @@ pub fn mix(project: &Project, tl: &Timeline, cancel: &AtomicBool, mut progress: 
     }
     progress(1.0);
     Ok(buf)
+}
+
+pub struct ScheduledTrack {
+    pub path: String,
+    pub trim_start: f64,
+    pub volume: f64,
+    pub start: f64,
+    pub len: f64,
+    pub fade_in: f64,
+    pub fade_out: f64,
+}
+
+/// Where each song plays in the show. Mirrors musicSchedule() in ui/js/model.js.
+pub fn music_schedule(project: &Project) -> Vec<ScheduledTrack> {
+    let cf = project.settings.music_crossfade.max(0.0);
+    let mut out: Vec<ScheduledTrack> = vec![];
+    let mut pos = 0.0f64;
+    for t in &project.music {
+        let Some(m) = project.media(&t.media_id) else { continue };
+        let end = t.trim_end.unwrap_or(m.duration).min(m.duration);
+        let len = (end - t.trim_start).max(0.0);
+        if len <= 0.05 {
+            continue;
+        }
+        let delay = t.delay.max(0.0);
+        let cross = !out.is_empty() && delay == 0.0 && cf > 0.0;
+        let base = if cross {
+            let prev_len = out.last().unwrap().len;
+            pos - cf.min(len / 2.0).min(prev_len / 2.0)
+        } else {
+            pos
+        };
+        let start = base + delay;
+        let fade_in = if cross { pos - base } else if t.trim_start > 0.3 { 1.0 } else { 0.0 };
+        if cross {
+            out.last_mut().unwrap().fade_out = pos - base;
+        }
+        out.push(ScheduledTrack {
+            path: m.path.clone(),
+            trim_start: t.trim_start,
+            volume: t.volume,
+            start,
+            len,
+            fade_in,
+            fade_out: if t.trim_end.is_some() { 0.5 } else { 0.0 },
+        });
+        pos = start + len;
+    }
+    out
 }
 
 pub fn write_wav(path: &Path, samples: &[f32]) -> Result<()> {

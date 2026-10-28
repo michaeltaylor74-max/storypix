@@ -167,7 +167,7 @@ function tick() {
   for (const [k, v] of videos) if (!active.has(k)) { v.pause(); v.removeAttribute("src"); v.load(); videos.delete(k); }
 
   // music
-  const s = p.settings, cf = Math.max(0.01, s.musicCrossfade), fo = Math.max(s.musicFadeOut, s.endFade, 0.1);
+  const s = p.settings, fo = Math.max(s.musicFadeOut, s.endFade, 0.1);
   for (const it of sched.items) {
     const local = t - it.start;
     const on = local >= 0 && local < it.len;
@@ -175,8 +175,8 @@ function tick() {
     if (!on) { if (a && !a.paused) a.pause(); continue; }
     if (!a) { a = new Audio(assets.audioSrc(it.media)); a.preload = "auto"; audios.set(it.track.id, a); }
     let g = s.musicVolume * it.track.volume;
-    if (!it.first) g *= Math.min(1, local / cf);
-    if (!it.last) g *= Math.min(1, (it.len - local) / cf);
+    if (it.fadeIn > 0) g *= Math.min(1, local / it.fadeIn);
+    if (it.fadeOut > 0) g *= Math.min(1, (it.len - local) / it.fadeOut);
     if (t > tl.total - fo) g *= Math.max(0, (tl.total - t) / fo);
     g *= envAt(t);
     a.volume = Math.max(0, Math.min(1, g));

@@ -3,6 +3,7 @@ import { h, toast } from "./ui.js";
 import { app, on, emit, change, currentSlide, selectItem, beginGesture, gestureUpdate, endGesture, insertSlides, slideForMedia } from "./state.js";
 import { drawSlide } from "./render.js";
 import { assets } from "./assets.js";
+import { openTrim } from "./trim.js";
 import { newText, newTile, placeMedia, clamp } from "./model.js";
 
 let wrap, stage, canvas, overlay, banner, cssW = 0, cssH = 0, dpr = 1;
@@ -89,7 +90,10 @@ function buildOverlay() {
     }
     box.addEventListener("pointerdown", (e) => onBoxDown(e, kind, item, box));
     box.addEventListener("dblclick", () => {
-      if (kind === "tile" && item.mediaId) { app.panMode = !app.panMode; selectItem("tile", item.id); }
+      if (kind === "tile" && item.mediaId) {
+        if (app.mediaById.get(item.mediaId)?.kind === "video") { openTrim(currentSlide(), item); return; }
+        app.panMode = !app.panMode; selectItem("tile", item.id);
+      }
       if (kind === "text") emit("focus", "text");
     });
     return box;

@@ -1,6 +1,6 @@
 // Music tab: soundtrack playlist + audio settings.
-import { h, toast, slider } from "./ui.js";
-import { app, change, addMediaItems, beginGesture, gestureUpdate, endGesture } from "./state.js";
+import { h, toast, slider, timeInput } from "./ui.js";
+import { app, change, addMediaItems, beginGesture, gestureUpdate, endGesture, currentIndex } from "./state.js";
 import { api } from "./backend.js";
 import { assets } from "./assets.js";
 import { uid, fmtTime, computeTimeline, musicSchedule, slideKind } from "./model.js";
@@ -12,7 +12,7 @@ export async function addMusicFiles(paths) {
   const res = await api.importFiles(paths);
   const items = await addMediaItems(res.items.filter((m) => m.kind === "audio"));
   if (!items.length) { toast("No music files found", "warn"); return; }
-  change((p) => { for (const m of items) p.music.push({ id: uid("a"), mediaId: m.id, trimStart: 0, trimEnd: null, volume: 1 }); });
+  change((p) => { for (const m of items) p.music.push({ id: uid("a"), mediaId: m.id, trimStart: 0, trimEnd: null, volume: 1, delay: 0 }); });
   toast(`Added ${items.length} song(s)`, "ok");
 }
 
@@ -41,7 +41,9 @@ export function renderMusicPanel(body) {
   p.music.forEach((t, i) => {
     const m = app.mediaById.get(t.mediaId);
     if (!m) return;
+    const it = sched.items.find((x) => x.track === t);
     const len = Math.max(0, Math.min(t.trimEnd ?? m.duration, m.duration) - t.trimStart);
+
     const move = (d) => change((p) => { const a = p.music; const [x] = a.splice(i, 1); a.splice(Math.max(0, Math.min(a.length, i + d)), 0, x); });
     list.append(h("div", { class: "music-card" },
       h("div", { class: "music-head" },
@@ -51,10 +53,24 @@ export function renderMusicPanel(body) {
         h("button", { class: "icon-btn", title: "Move up", disabled: i === 0, onclick: () => move(-1) }, "↑"),
         h("button", { class: "icon-btn", title: "Move down", disabled: i === p.music.length - 1, onclick: () => move(1) }, "↓"),
         h("button", { class: "icon-btn danger", title: "Remove from show", onclick: () => change((p) => p.music.splice(i, 1)) }, "✕")),
-      h("div", { class: "music-ctrls" },
-        h("button", { class: "icon-btn", title: "Listen", onclick: (e) => togglePreview(m, t, e.currentTarget) }, "▶"),
-        h("label", { class: "mini" }, "Start at", h("input", { type: "number", min: 0, max: Math.floor(m.duration), step: 1, value: Math.round(t.trimStart), onchange: (e) => change(() => { t.trimStart = Math.max(0, Math.min(m.duration - 1, +e.target.value || 0)); }) }), "s"),
-        h("label", { class: "mini" }, "End at", h("input", { type: "number", min: 0, max: Math.ceil(m.duration), step: 1, placeholder: Math.round(m.duration), value: t.trimEnd ?? "", onchange: (e) => change(() => { const v = e.target.value; t.trimEnd = v === "" ? null : Math.max(t.trimStart + 1, Math.min(m.duration, +v)); }) }), "s")),
+      h("div", { class: "music-grid" },
+        h("span", { class: "muted" }, "Skip the first"),
+        timeInput({ value: t.trimStart, max: Math.max(0, m.duration - 1), title: "Start the song this far in (skip its intro). Type seconds or m:ss", onset: (v) => change(() => { t.trimStart = Math.min(v, (t.trimEnd ?? m.duration) - 1); }) }),
+        h("button", { class: "icon-btn", title: "Listen from here", onclick: (e) => togglePreview(m, t, e.currentTarget) }, "▶"),
+        h("span", { class: "muted" }, "Stop the song at"),
+        timeInput({ value: t.trimEnd, allowEmpty: true, placeholder: "the end", max: m.duration, title: "Leave empty to play to the end", onset: (v) => change(() => { t.trimEnd = v === null || v >= m.duration - 0.05 ? null : Math.max(t.trimStart + 1, v); }) }),
+        h("span", {}),
+        h("span", { class: "muted" }, "Starts in the show at"),
+        timeInput({ value: it ? it.start : 0, title: "When this song begins, measured from the start of the show", onset: (v) => change(() => { t.delay = Math.max(0, Math.round((v - (it ? it.base : 0)) * 10) / 10); }) }),
+        h("button", { class: "icon-btn", title: "Start this song when the selected slide starts", onclick: () => {
+          const idx = currentIndex();
+          if (idx < 0) return toast("Select a slide in the storyboard first", "warn");
+          const at = computeTimeline(p).starts[idx];
+          change(() => { t.delay = Math.max(0, Math.round((at - (it ? it.base : 0)) * 10) / 10); });
+          toast(`Song ${i + 1} now starts with slide ${idx + 1} (${fmtTime(at)})`, "ok");
+        } }, "⇤")),
+      t.delay > 0 ? h("div", { class: "muted small" }, i === 0 ? `Silent for the first ${t.delay}s of the show (videos' own sound still plays).` : `${t.delay}s gap after the previous song.`,
+        " ", h("a", { href: "#", onclick: (e) => { e.preventDefault(); change(() => { t.delay = 0; }); } }, "Remove")) : null,
       slider({ label: "Volume", min: 0, max: 1.5, step: 0.05, value: t.volume, fmt: (v) => `${Math.round(v * 100)}%`,
         oninput: (v) => { beginGesture(); t.volume = v; gestureUpdate(); }, onchange: () => endGesture() })));
   });
@@ -72,7 +88,7 @@ export function renderMusicPanel(body) {
       h("button", { class: "btn primary", onclick: async () => addMusicFiles(await api.pickFiles("audio")) }, "＋ Add music")),
     list,
     h("div", { class: "music-summary" },
-      h("div", { class: "kv" }, h("span", {}, "Music total"), h("b", {}, fmtTime(sched.total))),
+      h("div", { class: "kv" }, h("span", {}, "Music ends at"), h("b", {}, fmtTime(sched.total))),
       h("div", { class: "kv" }, h("span", {}, "Show length"), h("b", {}, fmtTime(showLen))),
       status,
       h("button", { class: "btn", disabled: !p.music.length || !p.slides.length, onclick: () => {

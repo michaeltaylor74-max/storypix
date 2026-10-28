@@ -1,5 +1,5 @@
 // ✨ Auto Build wizard: turns a folder (with optional sub-folders) into a full show.
-import { h, modal, toast, confirmBox } from "./ui.js";
+import { h, modal, toast, confirmBox, slider } from "./ui.js";
 import { app, change, addMediaItems, applyStylePreset, emit } from "./state.js";
 import { api } from "./backend.js";
 import { uid, newSlide, newTitleSlide, layoutById, fmtTime, TRANSITION_SETS, STYLE_PRESETS, computeTimeline } from "./model.js";
@@ -350,9 +350,7 @@ function renderLeft(el, rr) {
       radio("lengthMode", "custom", "Set a length:", num("customMin", 1, 60, 0.5, " minutes"))),
 
     h("h3", { class: "step" }, h("span", {}, "3"), "Pace & style"),
-    h("div", { class: "row" }, h("span", { class: "lbl" }, "Time per slide"),
-      h("input", { type: "range", min: 2.5, max: 8, step: 0.5, value: W.secPerSlide, oninput: (e) => { W.secPerSlide = +e.target.value; e.target.nextSibling.textContent = `${W.secPerSlide}s`; }, onchange: () => rr() }),
-      h("span", { class: "val" }, `${W.secPerSlide}s`)),
+    slider({ label: "Time per slide", min: 2, max: 10, step: 0.5, typedMin: 1, typedMax: 30, value: W.secPerSlide, fmt: (v) => `${v}s`, oninput: (v) => { W.secPerSlide = v; }, onchange: () => rr() }),
     h("div", { class: "row" }, h("span", { class: "lbl" }, "Photos per slide"),
       h("select", { onchange: (e) => set("mix", e.target.value) }, Object.entries(MIX).map(([k, v]) => h("option", { value: k, selected: W.mix === k }, v.label)))),
     h("div", { class: "row" }, h("span", { class: "lbl" }, "Longest video clip"), num("maxClip", 2, 120, 1, " seconds (longer videos are trimmed)")),
