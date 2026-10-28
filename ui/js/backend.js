@@ -31,7 +31,7 @@ export const api = {
   listFolder: (path) => invoke("list_folder", { path }),
   importFiles: (files, folders = null) => invoke("import_files", { files, folders }),
   requestProxies: (items) => invoke("request_proxies", { items }),
-  pathsExist: (paths) => invoke("paths_exist", { paths }),
+  pathsExist: (paths, allowNetwork = false) => invoke("paths_exist", { paths, allowNetwork }),
   writeText: (path, content) => invoke("write_text", { path, content }),
   readText: (path) => invoke("read_text", { path }),
   autosave: (content) => invoke("autosave", { content }),
@@ -42,4 +42,6 @@ export const api = {
   cancelExport: () => invoke("cancel_export"),
   reveal: (path) => invoke("reveal", { path }),
   openPath: (path) => invoke("open_path", { path }),
+  cacheInfo: () => invoke("cache_info"),
+  clearCache: () => invoke("clear_cache"),
 };

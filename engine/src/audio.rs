@@ -33,7 +33,13 @@ pub fn mix(project: &Project, tl: &Timeline, cancel: &AtomicBool, mut progress: 
             break;
         }
         let want = it.len.min(total - it.start + 0.1);
-        let samples = decode_audio(Path::new(&it.path), it.trim_start, Some(want))?;
+        if it.path.is_empty() {
+            continue;
+        }
+        let samples = match decode_audio(Path::new(&it.path), it.trim_start, Some(want)) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
         let frames = samples.len() / 2;
         let g = (s.music_volume * it.volume) as f32;
         let start = (it.start * SR as f64) as usize;

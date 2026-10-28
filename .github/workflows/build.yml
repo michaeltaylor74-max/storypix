@@ -1,77 +1,107 @@
 name: Build Windows app
 
+# Pushes to main build a test installer (downloadable from the run's "Artifacts").
+# Pushing a version tag such as v0.3.0 builds AND publishes a public release.
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
 
+# Least privilege: nothing in the build can write to the repository.
 permissions:
-  contents: write
+  contents: read
+
+env:
+  # Every outside download is pinned to an exact version / fingerprint.
+  FFMPEG_VERSION: "9.0.2"
+  FFMPEG_SHA256: "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba"
+  TAURI_CLI_VERSION: "2.12.4"
 
 jobs:
-  windows:
+  build:
     runs-on: windows-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@2201cc584a476d1b508be977bbe4b7d1c7a52e9c # v2.9.3
 
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Download ffmpeg (video engine)
+      - name: Download and verify ffmpeg (video engine)
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          try {
-            Invoke-WebRequest "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile ffmpeg.zip
-          } catch {
-            Write-Host "gyan.dev failed, using BtbN build"
-            Invoke-WebRequest "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile ffmpeg.zip
-          }
+          $v = $env:FFMPEG_VERSION
+          Invoke-WebRequest "https://github.com/GyanD/codexffmpeg/releases/download/$v/ffmpeg-$v-essentials_build.zip" -OutFile ffmpeg.zip
+          $hash = (Get-FileHash ffmpeg.zip -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne $env:FFMPEG_SHA256) { throw "ffmpeg download does not match the expected fingerprint ($hash). Stopping." }
+          Write-Host "ffmpeg $v verified: $hash"
           Expand-Archive ffmpeg.zip -DestinationPath ffx
-          $ff = Get-ChildItem ffx -Recurse -Filter ffmpeg.exe | Select-Object -First 1
-          $fp = Get-ChildItem ffx -Recurse -Filter ffprobe.exe | Select-Object -First 1
+          $root = "ffx/ffmpeg-$v-essentials_build"
           New-Item -ItemType Directory -Force src-tauri/binaries | Out-Null
-          Copy-Item $ff.FullName src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
-          Copy-Item $fp.FullName src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
-          $lic = Get-ChildItem ffx -Recurse -Include LICENSE,LICENSE.txt,COPYING* | Select-Object -First 1
-          if ($lic) { Copy-Item $lic.FullName FFMPEG-LICENSE.txt } else { Invoke-WebRequest "https://www.gnu.org/licenses/gpl-3.0.txt" -OutFile FFMPEG-LICENSE.txt }
-          & src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe -version | Select-Object -First 1
+          Copy-Item "$root/bin/ffmpeg.exe" src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+          Copy-Item "$root/bin/ffprobe.exe" src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
+          Copy-Item "$root/LICENSE" FFMPEG-LICENSE.txt
 
       - name: Build app + installer
         working-directory: src-tauri
-        run: npx --yes @tauri-apps/cli@2 build
+        run: npx --yes "@tauri-apps/cli@${{ env.TAURI_CLI_VERSION }}" build -- --locked
 
-      - name: Make portable zip
+      - name: Package files and checksums
         shell: pwsh
         run: |
-          $v = "${{ github.run_number }}"
-          New-Item -ItemType Directory -Force portable/PhotoStory | Out-Null
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force dist, portable/PhotoStory | Out-Null
           Copy-Item target/release/photostory.exe portable/PhotoStory/PhotoStory.exe
           Copy-Item src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe portable/PhotoStory/ffmpeg.exe
           Copy-Item src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe portable/PhotoStory/ffprobe.exe
           Copy-Item FFMPEG-LICENSE.txt, THIRD-PARTY-NOTICES.md, LICENSE portable/PhotoStory/
-          Compress-Archive -Path portable/PhotoStory -DestinationPath "PhotoStory-portable.zip"
+          Compress-Archive -Path portable/PhotoStory -DestinationPath dist/PhotoStory-portable.zip
           $inst = Get-ChildItem target/release/bundle/nsis/*.exe | Select-Object -First 1
-          Copy-Item $inst.FullName "PhotoStory-Setup.exe"
-          Get-ChildItem PhotoStory-*
+          Copy-Item $inst.FullName dist/PhotoStory-Setup.exe
+          Get-ChildItem dist | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } | Set-Content dist/SHA256SUMS.txt
+          Get-Content dist/SHA256SUMS.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: PhotoStory-windows
-          path: |
-            PhotoStory-Setup.exe
-            PhotoStory-portable.zip
+          path: dist/*
 
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
+  release:
+    # Only version tags (v1.0.0 …) publish a release. This job alone may write.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          tag_name: build-${{ github.run_number }}
-          name: PhotoStory (build ${{ github.run_number }})
-          body: |
-            **PhotoStory-Setup.exe** — installer (recommended).
-            **PhotoStory-portable.zip** — no install needed; unzip and run PhotoStory.exe.
+          name: PhotoStory-windows
+          path: dist
+
+      - name: Write release notes
+        run: |
+          {
+            echo "**PhotoStory-Setup.exe**: installer (recommended)."
+            echo "**PhotoStory-portable.zip**: no install needed; unzip and run PhotoStory.exe."
+            echo
+            echo "Only download PhotoStory from this Releases page. To check a download is genuine, compare its SHA-256 fingerprint with the list below (PowerShell: \`Get-FileHash .\\PhotoStory-Setup.exe\`)."
+            echo
+            echo '```'
+            cat dist/SHA256SUMS.txt
+            echo '```'
+          } > notes.md
+
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          name: PhotoStory ${{ github.ref_name }}
+          body_path: notes.md
           files: |
-            PhotoStory-Setup.exe
-            PhotoStory-portable.zip
+            dist/PhotoStory-Setup.exe
+            dist/PhotoStory-portable.zip
+            dist/SHA256SUMS.txt
           make_latest: true

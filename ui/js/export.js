@@ -1,5 +1,5 @@
 // Export dialog: rasterises text layers, then hands the project to the Rust renderer.
-import { h, modal, toast } from "./ui.js";
+import { h, modal, toast, confirmBox } from "./ui.js";
 import { app } from "./state.js";
 import { api, listen } from "./backend.js";
 import { computeTimeline, fmtTime, slideKind, musicSchedule } from "./model.js";
@@ -67,6 +67,11 @@ export async function openExport() {
           const f = await api.pickSave("video", `${safeName}.mp4`);
           if (!f) return false;
           pathInp.value = /\.mp4$/i.test(f) ? f : f + ".mp4";
+        }
+        const [exists] = await api.pathsExist([pathInp.value.trim()]).catch(() => [false]);
+        if (exists) {
+          const ok = await confirmBox("Replace video?", `${pathInp.value.trim().split(/[\\/]/).pop()} already exists. Replace it with this export?`, "Replace");
+          if (!ok) return false;
         }
         return true;
       },

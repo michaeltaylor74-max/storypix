@@ -72,7 +72,7 @@ impl VideoReader {
         if start > 0.0 {
             c.args(["-ss", &format!("{start:.3}")]);
         }
-        c.arg("-i").arg(path);
+        c.args(["-protocol_whitelist", "file,pipe,fd", "-i"]).arg(path);
         c.args(["-t", &format!("{:.3}", dur.max(0.05))]);
         c.args([
             "-an",
@@ -133,7 +133,7 @@ fn video_size(slide: &Slide, ti: usize, project: &Project, w: u32, h: u32) -> Op
 fn video_frame_for_blur(path: &Path, at: f64) -> Option<image::DynamicImage> {
     let out = ffmpeg()
         .args(["-ss", &format!("{:.3}", at.max(0.0))])
-        .arg("-i")
+        .args(["-protocol_whitelist", "file,pipe,fd", "-i"])
         .arg(path)
         .args(["-frames:v", "1", "-vf", "scale=400:-2", "-f", "image2pipe", "-vcodec", "png", "-"])
         .stdin(Stdio::null())
@@ -174,13 +174,26 @@ pub fn load_slide_assets(project: &Project, slide: &Slide, overlay: Option<&Stri
         None
     };
     let background = Arc::new(render::make_background(&slide.background, blur_src.as_ref(), w, h));
-    let overlay = overlay.and_then(|p| Pixmap::load_png(p).ok()).map(Arc::new);
+    let overlay = overlay
+        .filter(|p| p.to_lowercase().ends_with(".png") && media::is_local_media_path(p))
+        .and_then(|p| Pixmap::load_png(p).ok())
+        .map(Arc::new);
     SlideAssets { background, images, overlay }
 }
 
 pub fn export(req: &ExportRequest, cancel: &AtomicBool, progress: impl Fn(Progress) + Sync) -> Result<()> {
-    let project = &req.project;
-    let (w, h, fps) = (req.width.max(16) & !1, req.height.max(16) & !1, req.fps.clamp(10, 60));
+    if !req.out_path.to_lowercase().ends_with(".mp4") || !media::is_local_media_path(&req.out_path) {
+        return Err(anyhow!("The video must be saved as a .mp4 file on this computer or a network drive."));
+    }
+    // Only ever read local files that exist; anything else is treated as missing.
+    let mut cleaned = req.project.clone();
+    for m in &mut cleaned.media {
+        if !media::is_local_media_path(&m.path) || !Path::new(&m.path).is_file() {
+            m.path.clear();
+        }
+    }
+    let project = &cleaned;
+    let (w, h, fps) = (req.width.clamp(16, 7680) & !1, req.height.clamp(16, 4320) & !1, req.fps.clamp(10, 60));
     let tl = timeline::compute(project);
     if project.slides.is_empty() || tl.total <= 0.0 {
         return Err(anyhow!("The show has no slides."));
@@ -205,8 +218,8 @@ pub fn export(req: &ExportRequest, cancel: &AtomicBool, progress: impl Fn(Progre
     // ---- encoder
     let out_path = PathBuf::from(&req.out_path);
     let mut enc = ffmpeg()
-        .args(["-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", &format!("{w}x{h}"), "-r", &fps.to_string(), "-i", "-"])
-        .arg("-i")
+        .args(["-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", &format!("{w}x{h}"), "-r", &fps.to_string(), "-protocol_whitelist", "pipe,fd", "-i", "-"])
+        .args(["-protocol_whitelist", "file,pipe,fd", "-i"])
         .arg(&wav)
         .args([
             "-map",

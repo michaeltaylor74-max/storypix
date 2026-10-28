@@ -40,10 +40,11 @@ pub fn discover_tools() -> Tools {
     let find = |n: &str| -> PathBuf {
         for d in &dirs {
             let p = d.join(exe_name(n));
-            if p.exists() {
+            if p.is_file() {
                 return p;
             }
-            // dev builds: sidecar keeps its target triple suffix
+            // dev builds only: the sidecar keeps its target-triple suffix
+            #[cfg(debug_assertions)]
             if let Ok(rd) = std::fs::read_dir(d) {
                 for e in rd.flatten() {
                     let f = e.file_name().to_string_lossy().to_string();
@@ -53,7 +54,12 @@ pub fn discover_tools() -> Tools {
                 }
             }
         }
-        PathBuf::from(n)
+        // Release builds only use the copies shipped next to the app.
+        if cfg!(debug_assertions) {
+            PathBuf::from(n)
+        } else {
+            dirs.first().map(|d| d.join(exe_name(n))).unwrap_or_else(|| PathBuf::from(exe_name(n)))
+        }
     };
     Tools { ffmpeg: find("ffmpeg"), ffprobe: find("ffprobe") }
 }
@@ -74,6 +80,22 @@ pub fn ffmpeg() -> Command {
     let mut c = command(&tools().ffmpeg);
     c.args(["-hide_banner", "-loglevel", "error", "-nostdin"]);
     c
+}
+
+/// True for web addresses (http://, ftp://, …) — never valid media paths.
+pub fn is_url(p: &str) -> bool {
+    p.contains("://")
+}
+
+/// True for Windows network-share paths (\\server\share\…).
+pub fn is_network(p: &str) -> bool {
+    let p = p.trim_start();
+    p.starts_with("\\\\") || p.starts_with("//")
+}
+
+/// A path we are willing to hand to ffmpeg / read from disk.
+pub fn is_local_media_path(p: &str) -> bool {
+    !p.is_empty() && !is_url(p) && !p.starts_with('-') && Path::new(p).is_absolute()
 }
 
 pub fn kind_of(path: &Path) -> Option<&'static str> {
@@ -153,6 +175,9 @@ fn read_exif(path: &Path) -> Option<ExifInfo> {
 
 /// Probe one file into a MediaItem (id left empty).
 pub fn probe(path: &Path) -> Result<MediaItem> {
+    if !is_local_media_path(&path.to_string_lossy()) {
+        return Err(anyhow!("not a local file"));
+    }
     let kind = kind_of(path).ok_or_else(|| anyhow!("unsupported file type"))?;
     let mut m = MediaItem {
         path: path.to_string_lossy().to_string(),
@@ -209,7 +234,7 @@ pub struct ProbeInfo {
 
 pub fn ffprobe(path: &Path) -> Result<ProbeInfo> {
     let out = command(&tools().ffprobe)
-        .args(["-v", "error", "-print_format", "json", "-show_format", "-show_streams"])
+        .args(["-v", "error", "-protocol_whitelist", "file", "-print_format", "json", "-show_format", "-show_streams"])
         .arg(path)
         .stdin(Stdio::null())
         .output()
@@ -273,7 +298,7 @@ pub fn load_image(path: &Path) -> Result<DynamicImage> {
         Ok(i) => Ok(i),
         Err(e) => {
             let out = ffmpeg()
-                .arg("-i")
+                .args(["-protocol_whitelist", "file,pipe,fd", "-i"])
                 .arg(path)
                 .args(["-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "-"])
                 .stdin(Stdio::null())
@@ -297,6 +322,13 @@ pub fn load_image_scaled(path: &Path, max_w: u32, max_h: u32) -> Result<DynamicI
     }
 }
 
+/// Mark a cached preview as recently used so the 45-day clean-up keeps it.
+fn touch(p: &Path) {
+    if let Ok(f) = std::fs::File::options().write(true).open(p) {
+        let _ = f.set_modified(std::time::SystemTime::now());
+    }
+}
+
 pub struct Proxies {
     pub thumb: Option<String>,
     pub proxy: Option<String>,
@@ -313,6 +345,9 @@ fn save_jpeg(img: &DynamicImage, path: &Path, q: u8) -> Result<()> {
 
 /// Create (or reuse) thumbnail and preview proxy files in cache_dir.
 pub fn make_proxies(item: &MediaItem, cache_dir: &Path) -> Result<Proxies> {
+    if !is_local_media_path(&item.path) {
+        return Err(anyhow!("not a local file"));
+    }
     std::fs::create_dir_all(cache_dir)?;
     let path = Path::new(&item.path);
     let key = cache_key(path);
@@ -320,7 +355,10 @@ pub fn make_proxies(item: &MediaItem, cache_dir: &Path) -> Result<Proxies> {
         "image" => {
             let t = cache_dir.join(format!("{key}_t.jpg"));
             let p = cache_dir.join(format!("{key}_p.jpg"));
-            if !(t.exists() && p.exists()) {
+            if t.exists() && p.exists() {
+                touch(&t);
+                touch(&p);
+            } else {
                 let img = load_image(path)?;
                 let proxy = if img.width() > 1600 || img.height() > 1600 {
                     img.resize(1600, 1600, image::imageops::FilterType::Triangle)
@@ -335,11 +373,13 @@ pub fn make_proxies(item: &MediaItem, cache_dir: &Path) -> Result<Proxies> {
         "video" => {
             let t = cache_dir.join(format!("{key}_t.jpg"));
             let p = cache_dir.join(format!("{key}_p.mp4"));
-            if !t.exists() {
+            if t.exists() {
+                touch(&t);
+            } else {
                 let at = (item.duration / 3.0).min(1.0);
                 let st = ffmpeg()
                     .args(["-y", "-ss", &format!("{at:.3}")])
-                    .arg("-i")
+                    .args(["-protocol_whitelist", "file,pipe,fd", "-i"])
                     .arg(path)
                     .args(["-frames:v", "1", "-vf", "scale=360:360:force_original_aspect_ratio=decrease", "-q:v", "4"])
                     .arg(&t)
@@ -349,11 +389,13 @@ pub fn make_proxies(item: &MediaItem, cache_dir: &Path) -> Result<Proxies> {
                     return Err(anyhow!("thumbnail failed"));
                 }
             }
-            if !p.exists() {
+            if p.exists() {
+                touch(&p);
+            } else {
                 let tmp = cache_dir.join(format!("{key}_p.tmp.mp4"));
                 let st = ffmpeg()
                     .arg("-y")
-                    .arg("-i")
+                    .args(["-protocol_whitelist", "file,pipe,fd", "-i"])
                     .arg(path)
                     .args([
                         "-vf",
@@ -393,7 +435,7 @@ pub fn make_proxies(item: &MediaItem, cache_dir: &Path) -> Result<Proxies> {
                 if !p.exists() {
                     let st = ffmpeg()
                         .arg("-y")
-                        .arg("-i")
+                        .args(["-protocol_whitelist", "file,pipe,fd", "-i"])
                         .arg(path)
                         .args(["-vn", "-c:a", "aac", "-b:a", "192k"])
                         .arg(&p)
@@ -418,7 +460,7 @@ pub fn decode_audio(path: &Path, start: f64, dur: Option<f64>) -> Result<Vec<f32
     if start > 0.0 {
         c.args(["-ss", &format!("{start:.3}")]);
     }
-    c.arg("-i").arg(path);
+    c.args(["-protocol_whitelist", "file,pipe,fd", "-i"]).arg(path);
     if let Some(d) = dur {
         c.args(["-t", &format!("{d:.3}")]);
     }

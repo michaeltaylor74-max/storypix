@@ -2977,7 +2977,7 @@ dependencies = [
 
 [[package]]
 name = "photostory"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2992,7 +2992,7 @@ dependencies = [
 
 [[package]]
 name = "photostory-engine"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

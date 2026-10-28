@@ -71,7 +71,8 @@ export function setProject(p, filePath = null) {
   app.filePath = filePath;
   undoStack.length = 0; redoStack.length = 0;
   reindex();
-  for (const m of app.project.media) if (m.thumb || m.proxy) assets.setProxy(m.id, { thumb: m.thumb, proxy: m.proxy });
+  // Never trust preview paths stored in a show file; they are regenerated from the cache.
+  for (const m of app.project.media) { m.thumb = null; m.proxy = null; delete m.missing; delete m.error; }
   app.sel = { slides: new Set(), current: app.project.slides[0]?.id || null, tile: null, text: null };
   if (app.sel.current) app.sel.slides.add(app.sel.current);
   app.libSel.clear();

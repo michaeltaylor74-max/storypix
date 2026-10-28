@@ -150,7 +150,18 @@ async function loadProject(p, path, dirty) {
 async function checkMissing() {
   const media = app.project.media;
   if (!media.length) return;
-  const exists = await api.pathsExist(media.map((m) => m.path));
+  let exists = await api.pathsExist(media.map((m) => m.path));
+  const net = media.filter((m, i) => exists[i] === null);
+  if (net.length) {
+    const hosts = [...new Set(net.map((m) => m.path.replace(/^[\\/]+/, "").split(/[\\/]/)[0]))];
+    const ok = await modal({
+      title: "Files on a network location",
+      body: h("div", {}, h("p", {}, `${net.length} file(s) in this show are stored on another computer or server: `, h("b", {}, hosts.slice(0, 3).join(", ")), hosts.length > 3 ? "…" : ""),
+        h("p", { class: "muted" }, "Only connect if you know and trust where this show came from (for example your school's shared drive).")),
+      buttons: [{ label: "Don't connect", value: false }, { label: "Connect", value: true, primary: true }],
+    });
+    if (ok) exists = await api.pathsExist(media.map((m) => m.path), true);
+  }
   let missing = media.filter((m, i) => !exists[i]);
   media.forEach((m, i) => { m.missing = !exists[i]; });
   if (!missing.length) return;
@@ -266,6 +277,20 @@ document.addEventListener("keydown", (e) => {
 });
 document.addEventListener("contextmenu", (e) => { if (!e.target.closest("input,textarea")) e.preventDefault(); });
 
+function cacheRow() {
+  const lbl = h("span", { class: "muted small" }, "Checking…");
+  const btn = h("button", { class: "btn small", onclick: async () => {
+    btn.disabled = true;
+    const left = await api.clearCache().catch(() => null);
+    for (const m of app.project.media) { m.thumb = null; m.proxy = null; assets.setProxy(m.id, { thumb: null, proxy: null }); }
+    lbl.textContent = left === null ? "Couldn't clear" : "Cleared. Previews for the open show will be remade.";
+    const items = app.project.media.filter((m) => !m.missing);
+    if (items.length) api.requestProxies(items).catch(() => {});
+  } }, "Clear preview copies");
+  api.cacheInfo().then((b) => { lbl.textContent = `Preview copies of photos & videos on this computer: ${(b / 1048576).toFixed(0)} MB (unused ones are deleted automatically after 45 days).`; }).catch(() => { lbl.textContent = ""; });
+  return h("div", { class: "row wrap" }, lbl, btn);
+}
+
 function showHelp() {
   const rows = [
     ["Space", "Play / pause preview"], ["Ctrl+Z / Ctrl+Y", "Undo / redo"], ["Ctrl+S", "Save"], ["Ctrl+O", "Open"], ["Ctrl+E", "Export video"],
@@ -277,6 +302,7 @@ function showHelp() {
     body: h("div", {},
       h("p", {}, "Quick start: ✨ Auto Build → pick your folder and songs → Build. Then tweak any slide, press ▶ Preview, and ⬇ Export video when you're happy."),
       h("table", { class: "keys" }, rows.map(([k, v]) => h("tr", {}, h("td", {}, h("kbd", {}, k)), h("td", {}, v)))),
+      cacheRow(),
       h("p", { class: "muted small" }, "Uses FFmpeg (ffmpeg.org, GPL-3.0) to read and create video. App code © 2026 Michael Taylor, MIT License."),
       h("p", { class: "muted small" }, "Your work is saved automatically every few seconds in case anything goes wrong. Save (Ctrl+S) to keep a .psproj file you can reopen or copy to another computer along with the photos.")),
     buttons: [{ label: "Close", value: true, primary: true }],

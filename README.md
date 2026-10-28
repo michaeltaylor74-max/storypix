@@ -15,6 +15,19 @@ No-install option: download **PhotoStory-portable.zip**, unzip anywhere, run `Ph
 Windows may show a blue "Windows protected your PC" box the first time because the app
 isn't code-signed: click **More info → Run anyway**.
 
+**Only download PhotoStory from this repository's Releases page.** Each release lists the
+SHA-256 fingerprint of every file. To check yours, run this in PowerShell and compare:
+`Get-FileHash .\PhotoStory-Setup.exe`
+
+## Privacy & safety
+
+- The app never connects to the internet and sends nothing anywhere. (The installer may
+  download Microsoft's WebView2 component if your PC doesn't already have it.)
+- Your photos stay where they are; small preview copies are kept in the app's cache folder
+  and deleted automatically after 45 days unused (or straight away via Help → Clear preview copies).
+- If a show file refers to photos on another computer or network share, the app asks before
+  connecting. Web addresses are never followed.
+
 ## Quick start
 
 1. **✨ Auto Build** → *Choose folder…* (sub-folders like `Year 7`, `Year 8` become sections —
@@ -54,4 +67,7 @@ Save with Ctrl+S to keep a `.psproj` file.
 Build locally on Windows: install Rust, put `ffmpeg-x86_64-pc-windows-msvc.exe` and
 `ffprobe-x86_64-pc-windows-msvc.exe` in `src-tauri/binaries/`, then
 `cd src-tauri && npx @tauri-apps/cli@2 build`. GitHub Actions does this automatically on
-every push to `main` and publishes a release.
+every push to `main` (download it from the run's *Artifacts*) and publishes a public
+release when a version tag such as `v0.3.0` is pushed. All build tools and the bundled
+ffmpeg are pinned to exact versions, and ffmpeg's download is checked against a known
+SHA-256 fingerprint.
