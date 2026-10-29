@@ -12,12 +12,25 @@ ffmpeg video engine) is inside.
 No-install option: download **PhotoStory-portable.zip**, unzip anywhere, run `PhotoStory.exe`
 (keep `ffmpeg.exe` and `ffprobe.exe` next to it).
 
-Windows may show a blue "Windows protected your PC" box the first time because the app
-isn't code-signed: click **More info → Run anyway**.
+### "isn't commonly downloaded" / "Windows protected your PC"
 
-**Only download PhotoStory from this repository's Releases page.** Each release lists the
-SHA-256 fingerprint of every file. To check yours, run this in PowerShell and compare:
-`Get-FileHash .\PhotoStory-Setup.exe`
+PhotoStory is free and new, and its installer isn't code-signed yet, so Windows and Edge
+are cautious about it. This is normal for new free software. To get past the warnings:
+
+1. **In Microsoft Edge**, when the download shows *"PhotoStory-Setup.exe isn't commonly
+   downloaded"*: hover over it, click **⋯** → **Keep** → **Show more** → **Keep anyway**.
+   (Chrome: click **Keep** / **Download anyway** if it asks.)
+2. **When you run it**, if a blue *"Windows protected your PC"* box appears:
+   click **More info** → **Run anyway**.
+
+**Only download PhotoStory from this repository's
+[Releases page](https://github.com/michaeltaylor74-max/photostory/releases).**
+To check your copy is genuine, compare its SHA-256 fingerprint with the one listed in the
+release notes. In PowerShell:
+
+```powershell
+Get-FileHash .\PhotoStory-Setup.exe
+```
 
 ## Privacy & safety
 

@@ -97,6 +97,10 @@ jobs:
             echo "**PhotoStory-Setup.exe**: installer (recommended)."
             echo "**PhotoStory-portable.zip**: no install needed; unzip and run PhotoStory.exe."
             echo
+            echo "**Seeing a warning?** PhotoStory is new and not code-signed yet, so Windows is cautious:"
+            echo "- Edge says *isn't commonly downloaded*: hover the download, click **⋯ → Keep → Show more → Keep anyway**."
+            echo "- Blue *Windows protected your PC* box: click **More info → Run anyway**."
+            echo
             echo "Only download PhotoStory from this Releases page. To check a download is genuine, compare its SHA-256 fingerprint with the list below (PowerShell: \`Get-FileHash .\\PhotoStory-Setup.exe\`)."
             echo
             echo '```'
