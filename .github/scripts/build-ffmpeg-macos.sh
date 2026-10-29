@@ -8,10 +8,20 @@
 #   FFmpeg  https://github.com/FFmpeg/FFmpeg  (tag n$FFMPEG_VERSION, commit $FFMPEG_COMMIT)
 #   x264    https://github.com/mirror/x264    (stable branch, commit $X264_COMMIT) — mirror of code.videolan.org/videolan/x264
 set -euo pipefail
+set -x
+on_err() {
+  set +x
+  echo "=== build failed; recent configure logs ==="
+  for f in "$WORK"/x264-*/config.log "$WORK"/ff-*/ffbuild/config.log; do
+    [ -f "$f" ] && { echo "--- $f"; tail -n 25 "$f"; }
+  done
+}
+trap on_err ERR
 OUT="$(mkdir -p "$1" && cd "$1" && pwd)"
 : "${FFMPEG_COMMIT:?}" "${X264_COMMIT:?}"
 MINOS=11.0
 WORK="$(pwd)/ffbuild"
+export WORK
 mkdir -p "$WORK"
 
 fetch() { # repo commit dir

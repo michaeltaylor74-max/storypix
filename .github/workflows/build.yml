@@ -108,8 +108,15 @@ jobs:
           FFMPEG_COMMIT: ${{ env.MAC_FFMPEG_COMMIT }}
           X264_COMMIT: ${{ env.MAC_X264_COMMIT }}
         run: |
-          brew install nasm pkg-config
-          .github/scripts/build-ffmpeg-macos.sh ffmpeg-mac
+          brew install nasm pkgconf || true
+          set +e
+          .github/scripts/build-ffmpeg-macos.sh ffmpeg-mac 2>&1 | tee ffbuild.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            # surface the end of the log as an annotation (easy to read from the run summary)
+            tail -n 80 ffbuild.log | perl -pe 's/%/%25/g; s/\r//g; s/\n/%0A/g' | { printf '::error title=ffmpeg build failed::'; cat; echo; }
+            exit "$rc"
+          fi
 
       - name: Add ffmpeg to the app
         run: |
