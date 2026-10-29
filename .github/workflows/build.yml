@@ -129,8 +129,11 @@ jobs:
       - name: Add ffmpeg to the app
         run: |
           mkdir -p src-tauri/binaries
-          cp ffmpeg-mac/ffmpeg  src-tauri/binaries/ffmpeg-universal-apple-darwin
-          cp ffmpeg-mac/ffprobe src-tauri/binaries/ffprobe-universal-apple-darwin
+          # Tauri looks for one copy per chip type while building, plus the joined one
+          for t in universal aarch64 x86_64; do
+            cp ffmpeg-mac/ffmpeg  src-tauri/binaries/ffmpeg-$t-apple-darwin
+            cp ffmpeg-mac/ffprobe src-tauri/binaries/ffprobe-$t-apple-darwin
+          done
           cp ffmpeg-mac/FFMPEG-LICENSE.txt FFMPEG-LICENSE.txt
           for b in ffmpeg ffprobe; do
             lipo -info ffmpeg-mac/$b
