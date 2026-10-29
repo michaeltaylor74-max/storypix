@@ -303,7 +303,7 @@ function showHelp() {
   const rows = [
     ["Space", "Play / pause preview"], [IS_MAC ? "⌘Z / ⇧⌘Z" : "Ctrl+Z / Ctrl+Y", "Undo / redo"], [key("S"), "Save"], [key("O"), "Open"], [key("E"), "Export video"],
     [key("D"), "Duplicate selected slides"], ["Delete", "Remove the selected text / photo / slides"], ["← →", "Previous / next slide (or nudge the selected box)"],
-    ["Shift + drag corner", "Resize keeping shape"], ["Alt + drag", "Move without snapping"], ["Double-click photo", "Reposition / zoom the photo inside its box"], ["Esc", "Stop / finish"],
+    ["Shift + drag corner", "Resize keeping shape"], [IS_MAC ? "Option (⌥) + drag" : "Alt + drag", "Move without snapping"], ["Double-click photo", "Reposition / zoom the photo inside its box"], ["Esc", "Stop / finish"],
   ];
   modal({
     title: "Help",
