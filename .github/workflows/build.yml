@@ -97,7 +97,7 @@ jobs:
 
       - name: Restore ffmpeg build
         id: ffcache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ffmpeg-mac
           key: ffmpeg-mac-${{ env.MAC_FFMPEG_COMMIT }}-${{ env.MAC_X264_COMMIT }}-${{ hashFiles('.github/scripts/build-ffmpeg-macos.sh') }}
@@ -119,6 +119,13 @@ jobs:
             exit "$rc"
           fi
 
+      - name: Save ffmpeg build (so later runs skip it)
+        if: steps.ffcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ffmpeg-mac
+          key: ${{ steps.ffcache.outputs.cache-primary-key }}
+
       - name: Add ffmpeg to the app
         run: |
           mkdir -p src-tauri/binaries
@@ -130,6 +137,8 @@ jobs:
 
       - name: Test the video engine on a Mac
         run: |
+          exec > >(tee step.log) 2>&1
+          trap 'rc=$?; [ $rc -ne 0 ] && { grep -E -i -B2 "error|panic|failed" step.log | tail -n 25; echo ===; tail -n 10 step.log; } | cut -c1-220 | perl -pe "s/%/%25/g; s/\r//g; s/\n/%0A/g" | { printf "::error title=engine test failed::"; cat; echo; }' EXIT
           set -e
           export PATH="$PWD/ffmpeg-mac:$PATH"
           T=engine-test; mkdir -p $T
@@ -150,10 +159,16 @@ jobs:
 
       - name: Build app (universal) + disk image
         working-directory: src-tauri
-        run: npx --yes "@tauri-apps/cli@${{ env.TAURI_CLI_VERSION }}" build --target universal-apple-darwin -- --locked
+        run: |
+          set -o pipefail
+          npx --yes "@tauri-apps/cli@${{ env.TAURI_CLI_VERSION }}" build --target universal-apple-darwin -- --locked 2>&1 | tee ../tauri.log || {
+            { grep -E -i -B2 "error|failed" ../tauri.log | tail -n 25; echo ===; tail -n 10 ../tauri.log; } | cut -c1-220 | perl -pe 's/%/%25/g; s/\r//g; s/\n/%0A/g' | { printf '::error title=app build failed::'; cat; echo; }
+            exit 1; }
 
       - name: Check the app starts
         run: |
+          exec > >(tee check.log) 2>&1
+          trap 'rc=$?; [ $rc -ne 0 ] && tail -n 30 check.log | cut -c1-220 | perl -pe "s/%/%25/g; s/\r//g; s/\n/%0A/g" | { printf "::error title=app check failed::"; cat; echo; }' EXIT
           set -e
           APP=$(ls -d target/universal-apple-darwin/release/bundle/macos/*.app | head -1)
           ls -l "$APP/Contents/MacOS"
