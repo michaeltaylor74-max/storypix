@@ -23,8 +23,10 @@ The Mac version isn't signed by Apple yet, so the first time you open it macOS s
 can't check StoryPix for malware:
 
 1. Click **Done** (not *Move to Bin*).
-2. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**
-   next to the StoryPix message. Confirm with your password.
+2. Open **System Settings → Privacy & Security** (on macOS 11–12: **System Preferences →
+   Security & Privacy → General**), scroll down, and click **Open Anyway** next to the
+   StoryPix message. Confirm with your password. (The button only shows for about an hour
+   after macOS blocked the app, so if it's missing, try opening StoryPix again first.)
 
 After that it opens normally. If macOS ever says the app *is damaged*, open **Terminal** and run
 `xattr -dr com.apple.quarantine /Applications/StoryPix.app`, then open it again.

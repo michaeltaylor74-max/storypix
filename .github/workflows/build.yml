@@ -25,6 +25,7 @@ env:
   # Mac: ffmpeg is built from source at these exact commits (see .github/scripts/build-ffmpeg-macos.sh)
   MAC_FFMPEG_COMMIT: "946fcce07b6dcd0331c8cc609192aeff5e1924f8" # FFmpeg n9.0.2
   MAC_X264_COMMIT: "31e19f92f00c7003fa115047ce50978bc98c3a0d"   # x264 stable
+  MAC_NASM_COMMIT: "cd37b81b320ead83ca5a6bbce5da0a6456663bc6"   # nasm 2.16.03
 
 jobs:
   build:
@@ -95,33 +96,63 @@ jobs:
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
+      # Releases always build ffmpeg fresh from the pinned sources; ordinary builds reuse it.
       - name: Restore ffmpeg build
         id: ffcache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        if: ${{ !(startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_version != '')) }}
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ffmpeg-mac
-          key: ffmpeg-mac-${{ env.MAC_FFMPEG_COMMIT }}-${{ env.MAC_X264_COMMIT }}-${{ hashFiles('.github/scripts/build-ffmpeg-macos.sh') }}
+          key: ffmpeg-mac-${{ env.MAC_FFMPEG_COMMIT }}-${{ env.MAC_X264_COMMIT }}-${{ env.MAC_NASM_COMMIT }}-${{ hashFiles('.github/scripts/build-ffmpeg-macos.sh') }}
 
       - name: Build ffmpeg from source (first time only, ~30 min)
         if: steps.ffcache.outputs.cache-hit != 'true'
         env:
           FFMPEG_COMMIT: ${{ env.MAC_FFMPEG_COMMIT }}
           X264_COMMIT: ${{ env.MAC_X264_COMMIT }}
+          NASM_COMMIT: ${{ env.MAC_NASM_COMMIT }}
         run: |
-          brew install nasm pkg-config
-          .github/scripts/build-ffmpeg-macos.sh ffmpeg-mac
+          # build helpers only (nothing from these ends up in the app)
+          for t in pkgconf autoconf automake; do brew list "$t" >/dev/null 2>&1 || brew install "$t"; done
+          set +e
+          .github/scripts/build-ffmpeg-macos.sh ffmpeg-mac 2>&1 | tee ffbuild.log
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -ne 0 ]; then
+            # surface the end of the log as an annotation (easy to read from the run summary)
+            { grep -E -i -B2 'error|not found|undefined|failed' ffbuild.log | grep -v -E '^\+|Wno-error|-Werror' | tail -n 25; echo ===; tail -n 8 ffbuild.log; } | cut -c1-220 \
+              | perl -pe 's/%/%25/g; s/\r//g; s/\n/%0A/g' | { printf '::error title=ffmpeg build failed::'; cat; echo; }
+            exit "$rc"
+          fi
+
+      - name: Save ffmpeg build (so later runs skip it)
+        if: steps.ffcache.outcome == 'success' && steps.ffcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ffmpeg-mac
+          key: ${{ steps.ffcache.outputs.cache-primary-key }}
 
       - name: Add ffmpeg to the app
         run: |
           mkdir -p src-tauri/binaries
-          cp ffmpeg-mac/ffmpeg  src-tauri/binaries/ffmpeg-universal-apple-darwin
-          cp ffmpeg-mac/ffprobe src-tauri/binaries/ffprobe-universal-apple-darwin
+          # Tauri looks for one copy per chip type while building, plus the joined one
+          for t in universal aarch64 x86_64; do
+            cp ffmpeg-mac/ffmpeg  src-tauri/binaries/ffmpeg-$t-apple-darwin
+            cp ffmpeg-mac/ffprobe src-tauri/binaries/ffprobe-$t-apple-darwin
+          done
           cp ffmpeg-mac/FFMPEG-LICENSE.txt FFMPEG-LICENSE.txt
-          lipo -info src-tauri/binaries/ffmpeg-universal-apple-darwin
+          for b in ffmpeg ffprobe; do
+            lipo -info ffmpeg-mac/$b
+            lipo -info ffmpeg-mac/$b | grep -q "x86_64" && lipo -info ffmpeg-mac/$b | grep -q "arm64"
+            # only Apple's own system libraries may be linked (dependency lines are indented)
+            if otool -L ffmpeg-mac/$b | grep -E '^[[:space:]]' | grep -v -E '^[[:space:]]*(/usr/lib/|/System/Library/)'; then echo "$b links a non-system library"; exit 1; fi
+          done
+          ffmpeg-mac/ffmpeg -hide_banner -encoders | grep -q libx264
           ffmpeg-mac/ffmpeg -hide_banner -version | head -1
 
       - name: Test the video engine on a Mac
         run: |
+          exec > >(tee step.log) 2>&1
+          trap 'rc=$?; [ $rc -ne 0 ] && { grep -E -i -B2 "error|panic|failed" step.log | tail -n 25; echo ===; tail -n 10 step.log; } | cut -c1-220 | perl -pe "s/%/%25/g; s/\r//g; s/\n/%0A/g" | { printf "::error title=engine test failed::"; cat; echo; }' EXIT
           set -e
           export PATH="$PWD/ffmpeg-mac:$PATH"
           T=engine-test; mkdir -p $T
@@ -142,10 +173,16 @@ jobs:
 
       - name: Build app (universal) + disk image
         working-directory: src-tauri
-        run: npx --yes "@tauri-apps/cli@${{ env.TAURI_CLI_VERSION }}" build --target universal-apple-darwin -- --locked
+        run: |
+          set -o pipefail
+          npx --yes "@tauri-apps/cli@${{ env.TAURI_CLI_VERSION }}" build --target universal-apple-darwin -- --locked 2>&1 | tee ../tauri.log || {
+            { grep -E -i -B2 "error|failed" ../tauri.log | tail -n 25; echo ===; tail -n 10 ../tauri.log; } | cut -c1-220 | perl -pe 's/%/%25/g; s/\r//g; s/\n/%0A/g' | { printf '::error title=app build failed::'; cat; echo; }
+            exit 1; }
 
       - name: Check the app starts
         run: |
+          exec > >(tee check.log) 2>&1
+          trap 'rc=$?; [ $rc -ne 0 ] && tail -n 30 check.log | cut -c1-220 | perl -pe "s/%/%25/g; s/\r//g; s/\n/%0A/g" | { printf "::error title=app check failed::"; cat; echo; }' EXIT
           set -e
           APP=$(ls -d target/universal-apple-darwin/release/bundle/macos/*.app | head -1)
           ls -l "$APP/Contents/MacOS"
@@ -173,7 +210,7 @@ jobs:
 
   release:
     # Only version tags (v1.0.0 …) publish a release. This job alone may write.
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_version != '' && github.ref == 'refs/heads/main')
+    if: always() && needs.build.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_version != '' && github.ref == 'refs/heads/main'))
     needs: [build, build-mac]
     runs-on: ubuntu-latest
     permissions:
@@ -185,14 +222,27 @@ jobs:
           path: dist
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.build-mac.result == 'success'
         with:
           name: StoryPix-mac
           path: dist
 
+      - name: Mac ffmpeg source code (GPL)
+        if: needs.build-mac.result == 'success'
+        env:
+          FFMPEG_COMMIT: ${{ env.MAC_FFMPEG_COMMIT }}
+          X264_COMMIT: ${{ env.MAC_X264_COMMIT }}
+        run: |
+          set -e
+          src() { git init -q "$3"; git -C "$3" fetch -q --depth 1 "$1" "$2"; git -C "$3" archive --format=tar.gz --prefix="$3/" -o "dist/$3-source.tar.gz" "$2"; }
+          src https://github.com/FFmpeg/FFmpeg.git "$FFMPEG_COMMIT" ffmpeg-n9.0.2
+          src https://github.com/mirror/x264.git "$X264_COMMIT" x264-stable
+          ls -l dist
+
       - name: Combine checksums
         run: |
-          cat dist/SHA256SUMS-mac.txt >> dist/SHA256SUMS.txt
-          rm dist/SHA256SUMS-mac.txt
+          sed -i 's/\r$//' dist/SHA256SUMS.txt
+          if [ -f dist/SHA256SUMS-mac.txt ]; then cat dist/SHA256SUMS-mac.txt >> dist/SHA256SUMS.txt; rm dist/SHA256SUMS-mac.txt; fi
           cat dist/SHA256SUMS.txt
 
       - name: Write release notes
@@ -200,14 +250,18 @@ jobs:
           {
             echo "**StoryPix-Setup.exe**: installer (recommended)."
             echo "**StoryPix-portable.zip**: no install needed; unzip and run StoryPix.exe."
-            echo "**StoryPix-Mac-beta.dmg**: Mac beta (macOS 11 or later, Apple Silicon and Intel). Open it and drag StoryPix to Applications."
+            if [ -f dist/StoryPix-Mac-beta.dmg ]; then
+              echo "**StoryPix-Mac-beta.dmg**: Mac beta (macOS 11 or later, Apple Silicon and Intel). Open it and drag StoryPix to Applications."
+            fi
             echo
             echo "**Seeing a warning?** StoryPix is new and not code-signed yet, so Windows is cautious:"
             echo "- Edge says *isn't commonly downloaded*: hover the download, click **⋯ → Keep → Show more → Keep anyway**."
             echo "- Blue *Windows protected your PC* box: click **More info → Run anyway**."
             echo
-            echo "**Mac beta:** the first time, macOS says it can't check StoryPix for malware. Click **Done**, then open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to StoryPix."
-            echo
+            if [ -f dist/StoryPix-Mac-beta.dmg ]; then
+              echo "**Mac beta:** the first time, macOS says it can't check StoryPix for malware. Click **Done**, then open **System Settings → Privacy & Security** (older macOS: **System Preferences → Security & Privacy**), scroll down and click **Open Anyway** next to StoryPix within an hour. The Mac's video engine is built from FFmpeg and x264 source code, attached below as *-source.tar.gz (GPL)."
+              echo
+            fi
             echo "Only download StoryPix from this Releases page. To check a download is genuine, compare its SHA-256 fingerprint with the list below (Windows PowerShell: \`Get-FileHash .\\StoryPix-Setup.exe\`; Mac Terminal: \`shasum -a 256 StoryPix-Mac-beta.dmg\`)."
             echo
             echo '```'
@@ -237,5 +291,7 @@ jobs:
             dist/StoryPix-Setup.exe
             dist/StoryPix-portable.zip
             dist/StoryPix-Mac-beta.dmg
+            dist/ffmpeg-n9.0.2-source.tar.gz
+            dist/x264-stable-source.tar.gz
             dist/SHA256SUMS.txt
           make_latest: true
