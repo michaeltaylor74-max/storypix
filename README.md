@@ -41,6 +41,26 @@ Get-FileHash .\PhotoStory-Setup.exe
 - If a show file refers to photos on another computer or network share, the app asks before
   connecting. Web addresses are never followed.
 
+## Code signing policy
+
+PhotoStory has applied to the [SignPath Foundation](https://signpath.org) for free code
+signing. **Until that is approved, releases are not code-signed.** Once approved:
+free code signing provided by [SignPath.io](https://signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+- Committers and reviewers: [Michael Taylor](https://github.com/michaeltaylor74-max) (maintainer)
+- Approvers: [Michael Taylor](https://github.com/michaeltaylor74-max)
+
+Every release is built automatically from this repository's source code by GitHub Actions
+(see `.github/workflows/build.yml`), and each signing request is approved manually.
+
+**Privacy:** this program will not transfer any information to other networked systems
+unless specifically requested by the user or the person installing or operating it.
+(The installer may download Microsoft's WebView2 runtime if it is missing.)
+
+**Uninstalling:** use Windows *Settings → Apps → Installed apps → PhotoStory → Uninstall*.
+The portable version can simply be deleted.
+
 ## Quick start
 
 1. **✨ Auto Build** → *Choose folder…* (sub-folders like `Year 7`, `Year 8` become sections —
