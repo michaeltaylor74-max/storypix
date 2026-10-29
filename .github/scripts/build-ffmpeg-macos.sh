@@ -55,7 +55,7 @@ for ARCH in arm64 x86_64; do
   ( cd "$WORK/ff-$ARCH"
     CROSS=()
     [ "$ARCH" != "$(uname -m)" ] && CROSS=(--enable-cross-compile --target-os=darwin)
-    PKG_CONFIG_PATH="$P/lib/pkgconfig" "$WORK/ffmpeg-src/configure" --prefix="$P" --arch="$ARCH" "${CROSS[@]}" \
+    PKG_CONFIG_PATH="$P/lib/pkgconfig" "$WORK/ffmpeg-src/configure" --prefix="$P" --arch="$ARCH" ${CROSS[@]+"${CROSS[@]}"} \
       --cc="clang -arch $ARCH" --extra-cflags="$CFL -I$P/include" --extra-ldflags="$CFL -L$P/lib" \
       --pkg-config-flags="--static" \
       --enable-gpl --enable-libx264 --enable-zlib \
