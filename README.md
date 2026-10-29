@@ -1,6 +1,6 @@
 # StoryPix
 
-**Website: https://michaeltaylor74-max.github.io/storypix/**
+**Website: https://getstorypix.com**
 
 A photo & video slideshow maker for school end-of-year (and any other) shows.
 Built because the commercial options kept crashing and nagging for upgrades.
