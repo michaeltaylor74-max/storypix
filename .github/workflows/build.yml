@@ -25,6 +25,7 @@ env:
   # Mac: ffmpeg is built from source at these exact commits (see .github/scripts/build-ffmpeg-macos.sh)
   MAC_FFMPEG_COMMIT: "946fcce07b6dcd0331c8cc609192aeff5e1924f8" # FFmpeg n9.0.2
   MAC_X264_COMMIT: "31e19f92f00c7003fa115047ce50978bc98c3a0d"   # x264 stable
+  MAC_NASM_COMMIT: "cd37b81b320ead83ca5a6bbce5da0a6456663bc6"   # nasm 2.16.03
 
 jobs:
   build:
@@ -95,20 +96,24 @@ jobs:
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
+      # Releases always build ffmpeg fresh from the pinned sources; ordinary builds reuse it.
       - name: Restore ffmpeg build
         id: ffcache
+        if: ${{ !(startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_version != '')) }}
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ffmpeg-mac
-          key: ffmpeg-mac-${{ env.MAC_FFMPEG_COMMIT }}-${{ env.MAC_X264_COMMIT }}-${{ hashFiles('.github/scripts/build-ffmpeg-macos.sh') }}
+          key: ffmpeg-mac-${{ env.MAC_FFMPEG_COMMIT }}-${{ env.MAC_X264_COMMIT }}-${{ env.MAC_NASM_COMMIT }}-${{ hashFiles('.github/scripts/build-ffmpeg-macos.sh') }}
 
       - name: Build ffmpeg from source (first time only, ~30 min)
         if: steps.ffcache.outputs.cache-hit != 'true'
         env:
           FFMPEG_COMMIT: ${{ env.MAC_FFMPEG_COMMIT }}
           X264_COMMIT: ${{ env.MAC_X264_COMMIT }}
+          NASM_COMMIT: ${{ env.MAC_NASM_COMMIT }}
         run: |
-          brew install nasm pkgconf || true
+          # build helpers only (nothing from these ends up in the app)
+          for t in pkgconf autoconf automake; do brew list "$t" >/dev/null 2>&1 || brew install "$t"; done
           set +e
           .github/scripts/build-ffmpeg-macos.sh ffmpeg-mac 2>&1 | tee ffbuild.log
           rc=${PIPESTATUS[0]}
@@ -120,7 +125,7 @@ jobs:
           fi
 
       - name: Save ffmpeg build (so later runs skip it)
-        if: steps.ffcache.outputs.cache-hit != 'true'
+        if: steps.ffcache.outcome == 'success' && steps.ffcache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ffmpeg-mac
@@ -205,7 +210,7 @@ jobs:
 
   release:
     # Only version tags (v1.0.0 …) publish a release. This job alone may write.
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_version != '' && github.ref == 'refs/heads/main')
+    if: always() && needs.build.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_version != '' && github.ref == 'refs/heads/main'))
     needs: [build, build-mac]
     runs-on: ubuntu-latest
     permissions:
@@ -217,14 +222,27 @@ jobs:
           path: dist
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.build-mac.result == 'success'
         with:
           name: StoryPix-mac
           path: dist
 
+      - name: Mac ffmpeg source code (GPL)
+        if: needs.build-mac.result == 'success'
+        env:
+          FFMPEG_COMMIT: ${{ env.MAC_FFMPEG_COMMIT }}
+          X264_COMMIT: ${{ env.MAC_X264_COMMIT }}
+        run: |
+          set -e
+          src() { git init -q "$3"; git -C "$3" fetch -q --depth 1 "$1" "$2"; git -C "$3" archive --format=tar.gz --prefix="$3/" -o "dist/$3-source.tar.gz" "$2"; }
+          src https://github.com/FFmpeg/FFmpeg.git "$FFMPEG_COMMIT" ffmpeg-n9.0.2
+          src https://github.com/mirror/x264.git "$X264_COMMIT" x264-stable
+          ls -l dist
+
       - name: Combine checksums
         run: |
-          cat dist/SHA256SUMS-mac.txt >> dist/SHA256SUMS.txt
-          rm dist/SHA256SUMS-mac.txt
+          sed -i 's/\r$//' dist/SHA256SUMS.txt
+          if [ -f dist/SHA256SUMS-mac.txt ]; then cat dist/SHA256SUMS-mac.txt >> dist/SHA256SUMS.txt; rm dist/SHA256SUMS-mac.txt; fi
           cat dist/SHA256SUMS.txt
 
       - name: Write release notes
@@ -232,14 +250,18 @@ jobs:
           {
             echo "**StoryPix-Setup.exe**: installer (recommended)."
             echo "**StoryPix-portable.zip**: no install needed; unzip and run StoryPix.exe."
-            echo "**StoryPix-Mac-beta.dmg**: Mac beta (macOS 11 or later, Apple Silicon and Intel). Open it and drag StoryPix to Applications."
+            if [ -f dist/StoryPix-Mac-beta.dmg ]; then
+              echo "**StoryPix-Mac-beta.dmg**: Mac beta (macOS 11 or later, Apple Silicon and Intel). Open it and drag StoryPix to Applications."
+            fi
             echo
             echo "**Seeing a warning?** StoryPix is new and not code-signed yet, so Windows is cautious:"
             echo "- Edge says *isn't commonly downloaded*: hover the download, click **⋯ → Keep → Show more → Keep anyway**."
             echo "- Blue *Windows protected your PC* box: click **More info → Run anyway**."
             echo
-            echo "**Mac beta:** the first time, macOS says it can't check StoryPix for malware. Click **Done**, then open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to StoryPix."
-            echo
+            if [ -f dist/StoryPix-Mac-beta.dmg ]; then
+              echo "**Mac beta:** the first time, macOS says it can't check StoryPix for malware. Click **Done**, then open **System Settings → Privacy & Security** (older macOS: **System Preferences → Security & Privacy**), scroll down and click **Open Anyway** next to StoryPix within an hour. The Mac's video engine is built from FFmpeg and x264 source code, attached below as *-source.tar.gz (GPL)."
+              echo
+            fi
             echo "Only download StoryPix from this Releases page. To check a download is genuine, compare its SHA-256 fingerprint with the list below (Windows PowerShell: \`Get-FileHash .\\StoryPix-Setup.exe\`; Mac Terminal: \`shasum -a 256 StoryPix-Mac-beta.dmg\`)."
             echo
             echo '```'
@@ -269,5 +291,7 @@ jobs:
             dist/StoryPix-Setup.exe
             dist/StoryPix-portable.zip
             dist/StoryPix-Mac-beta.dmg
+            dist/ffmpeg-n9.0.2-source.tar.gz
+            dist/x264-stable-source.tar.gz
             dist/SHA256SUMS.txt
           make_latest: true

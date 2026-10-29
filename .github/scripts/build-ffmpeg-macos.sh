@@ -7,6 +7,7 @@
 # Sources are fetched by exact commit, so the build is reproducible and can't be swapped:
 #   FFmpeg  https://github.com/FFmpeg/FFmpeg  (tag n$FFMPEG_VERSION, commit $FFMPEG_COMMIT)
 #   x264    https://github.com/mirror/x264    (stable branch, commit $X264_COMMIT) — mirror of code.videolan.org/videolan/x264
+#   nasm    https://github.com/netwide-assembler/nasm (tag nasm-2.16.03, commit $NASM_COMMIT) — assembler for the Intel build
 set -euo pipefail
 set -x
 on_err() {
@@ -18,7 +19,7 @@ on_err() {
 }
 trap on_err ERR
 OUT="$(mkdir -p "$1" && cd "$1" && pwd)"
-: "${FFMPEG_COMMIT:?}" "${X264_COMMIT:?}"
+: "${FFMPEG_COMMIT:?}" "${X264_COMMIT:?}" "${NASM_COMMIT:?}"
 MINOS=11.0
 WORK="$(pwd)/ffbuild"
 export WORK
@@ -35,7 +36,17 @@ fetch() { # repo commit dir
 }
 fetch https://github.com/FFmpeg/FFmpeg.git "$FFMPEG_COMMIT" ffmpeg-src
 fetch https://github.com/mirror/x264.git "$X264_COMMIT" x264-src
+fetch https://github.com/netwide-assembler/nasm.git "$NASM_COMMIT" nasm-src
 JOBS=$(sysctl -n hw.ncpu)
+
+# nasm, built from pinned source (it assembles the Intel code inside x264 and ffmpeg)
+( cd "$WORK/nasm-src"
+  ./autogen.sh
+  ./configure --prefix="$WORK/tools"
+  make -j"$JOBS" nasm ndisasm
+  mkdir -p "$WORK/tools/bin" && cp nasm ndisasm "$WORK/tools/bin/" )
+export PATH="$WORK/tools/bin:$PATH"
+nasm -v
 
 for ARCH in arm64 x86_64; do
   P="$WORK/prefix-$ARCH"
@@ -58,7 +69,7 @@ for ARCH in arm64 x86_64; do
     PKG_CONFIG_PATH="$P/lib/pkgconfig" "$WORK/ffmpeg-src/configure" --prefix="$P" --arch="$ARCH" ${CROSS[@]+"${CROSS[@]}"} \
       --cc="clang -arch $ARCH" --extra-cflags="$CFL -I$P/include" --extra-ldflags="$CFL -L$P/lib" \
       --pkg-config-flags="--static" \
-      --enable-gpl --enable-libx264 --enable-zlib \
+      --enable-gpl --enable-version3 --enable-libx264 --enable-zlib \
       --disable-autodetect --disable-network --disable-doc --disable-ffplay --disable-debug \
       --enable-videotoolbox --enable-audiotoolbox \
       --disable-shared --enable-static

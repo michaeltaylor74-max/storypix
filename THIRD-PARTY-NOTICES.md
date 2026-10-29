@@ -15,12 +15,16 @@ Source code:
 - FFmpeg: https://ffmpeg.org/download.html (and https://github.com/FFmpeg/FFmpeg)
 - Build scripts / exact sources for the bundled build: https://www.gyan.dev/ffmpeg/builds/
 
-**Mac version:** the Mac download includes `ffmpeg` and `ffprobe` built from source by this
-repository's own build script (`.github/scripts/build-ffmpeg-macos.sh`) from FFmpeg
-(https://github.com/FFmpeg/FFmpeg, tag n9.0.2) and x264 (https://code.videolan.org/videolan/x264,
-GPL-2.0-or-later, via its GitHub mirror). The exact source commits are listed in that script's
-workflow (`.github/workflows/build.yml`). This build is licensed under the GPL-3.0; the licence
-text is included in the app as `FFMPEG-LICENSE.txt`.
+**Mac version:** the Mac download includes `ffmpeg` and `ffprobe` that this project builds
+itself (`.github/scripts/build-ffmpeg-macos.sh`) from:
+
+- FFmpeg n9.0.2 — https://github.com/FFmpeg/FFmpeg, commit `946fcce07b6dcd0331c8cc609192aeff5e1924f8`
+- x264 (stable) — https://code.videolan.org/videolan/x264 via its GitHub mirror, commit `31e19f92f00c7003fa115047ce50978bc98c3a0d`
+
+configured with `--enable-gpl --enable-version3 --enable-libx264`, so the result is licensed under
+the GPL-3.0 (licence text included in the app as `FFMPEG-LICENSE.txt`). The exact source code is
+attached to every release that includes the Mac version (`ffmpeg-n9.0.2-source.tar.gz`,
+`x264-stable-source.tar.gz`), together with the build script in this repository.
 
 FFmpeg is a trademark of Fabrice Bellard, originator of the FFmpeg project.
 This app is not affiliated with or endorsed by the FFmpeg project.
