@@ -1,6 +1,6 @@
 # StoryPix
 
-**Website: https://getstorypix.com**
+**Website: https://getstorypix.com** · [Step-by-step guide](https://getstorypix.com/guide.html)
 
 A photo & video slideshow maker for school end-of-year (and any other) shows.
 Built because the commercial options kept crashing and nagging for upgrades.

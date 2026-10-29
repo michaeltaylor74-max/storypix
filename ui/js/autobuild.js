@@ -65,6 +65,12 @@ function libraryGroups() {
     .map(([k, items]) => ({ key: k, name: k || "Photos", include: true, items, photos: items.filter((m) => m.kind === "image").length, videos: items.filter((m) => m.kind === "video").length }));
 }
 
+// "01 - Camp" / "2. Sports Day" / "3_Formal" → title without the ordering number (the folder name still sets the order)
+function cleanTitle(rel) {
+  const one = (seg) => seg.replace(/^\s*\d{1,3}\s*[-._)]*\s+|^\s*\d{1,3}\s*[-._)]+\s*/, "").trim() || seg;
+  return (rel || "").split(/[\\/]/).filter(Boolean).map(one).join(" / ");
+}
+
 async function chooseFolder(rerender) {
   const f = await api.pickFolder();
   if (!f) return;
@@ -76,7 +82,7 @@ async function chooseFolder(rerender) {
   try {
     const groups = (await api.listFolder(f)).filter((g) => g.photos + g.videos > 0);
     const base = f.split(/[\\/]/).filter(Boolean).pop();
-    W.groups = groups.map((g) => ({ key: g.rel, name: g.rel || base, include: true, items: [], files: g.files.filter((x) => !/\.(mp3|wav|m4a|aac|flac|ogg|wma|aiff?|opus)$/i.test(x)), photos: g.photos, videos: g.videos }));
+    W.groups = groups.map((g) => ({ key: g.rel, name: cleanTitle(g.rel) || base, include: true, items: [], files: g.files.filter((x) => !/\.(mp3|wav|m4a|aac|flac|ogg|wma|aiff?|opus)$/i.test(x)), photos: g.photos, videos: g.videos }));
     // the root folder's own files go first
     W.groups.sort((a, b) => (a.key === "" ? -1 : b.key === "" ? 1 : a.key.localeCompare(b.key, undefined, { numeric: true })));
     rerender();
