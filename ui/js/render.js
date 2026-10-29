@@ -1,5 +1,5 @@
 // Canvas renderer for editor, thumbnails and preview. Mirrors engine/src/render.rs.
-import { motion, placeMedia, textAnim, frameAt, easeCubic, hash32, clamp } from "./model.js";
+import { textAnim, frameAt, easeCubic, hash32, clamp, tileFrame } from "./model.js";
 import { assets } from "./assets.js";
 
 function roundRectPath(ctx, w, h, r) {
@@ -113,16 +113,19 @@ export function drawSlide(ctx, project, slide, lt, W, H, mode, mediaById, videoF
     roundRectPath(ctx, g.w, g.h, st.radius * k);
     ctx.save();
     ctx.clip();
-    const [scale, fx, fy] = animated ? motion(tile, p, isVideo) : [1, tile.focusX, tile.focusY];
-    const [left, top, dw, dh] = placeMedia(tile, g.w, g.h, m.width, m.height, scale, fx, fy);
     let src = null;
     if (isVideo && animated && videoFor) {
       const v = videoFor(slide, tile);
       if (v && v.readyState >= 2) src = v;
     }
     if (!src) src = assets.image(m, mode === "thumb" ? "thumb" : "proxy");
-    if (src) ctx.drawImage(src, left, top, dw, dh);
-    else {
+    if (src) {
+      // Proportion guard: always place using the real pixel shape of what is drawn.
+      const iw = src.videoWidth || src.naturalWidth || src.width || m.width;
+      const ih = src.videoHeight || src.naturalHeight || src.height || m.height;
+      const [left, top, dw, dh] = tileFrame(tile, p, isVideo, g.w, g.h, iw, ih, animated);
+      ctx.drawImage(src, left, top, dw, dh);
+    } else {
       ctx.fillStyle = "#2a2f3a";
       ctx.fillRect(0, 0, g.w, g.h);
     }

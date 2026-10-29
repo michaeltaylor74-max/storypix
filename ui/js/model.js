@@ -40,6 +40,7 @@ export const MOTIONS = [
   { id: "panRight", label: "Pan right" },
   { id: "panUp", label: "Pan up" },
   { id: "panDown", label: "Pan down" },
+  { id: "custom", label: "🎯 Zoom to a spot (custom)" },
 ];
 
 export const FONTS = ["Segoe UI", "Arial", "Arial Black", "Georgia", "Times New Roman", "Verdana", "Trebuchet MS", "Impact", "Comic Sans MS", "Courier New", "Segoe Script", "Gabriola"];
@@ -102,7 +103,7 @@ export const rectAspect = (r) => (r.w * W0) / (r.h * H0);
 export function newTile(rect, mediaId = null) {
   return {
     id: uid("t"), rect: { ...rect }, mediaId, fit: "fill", focusX: 0.5, focusY: 0.5, zoom: 1,
-    motion: "none", motionAmount: 0.15, rotation: 0, trimStart: 0, trimEnd: null, muted: true, volume: 1,
+    motion: "none", motionAmount: 0.15, rotation: 0, trimStart: 0, trimEnd: null, muted: true, volume: 1, kb: null,
   };
 }
 export function newSlide(layoutId = "full", defaults = {}) {
@@ -151,6 +152,7 @@ export function normalizeProject(p) {
     const n = newSlide("full");
     for (const k of Object.keys(n)) if (s[k] === undefined) s[k] = n[k];
     s.tiles = (s.tiles || []).map((t) => ({ ...newTile(t.rect || { x: 0, y: 0, w: 1, h: 1 }), ...t }));
+    for (const t of s.tiles) if (!["fill", "fit", "stretch"].includes(t.fit)) t.fit = "fill";
     s.texts = (s.texts || []).map((t) => ({ ...newText(), ...t }));
   }
   return p;
@@ -210,12 +212,43 @@ export function motion(tile, p, isVideo) {
     default: return [1, fx, fy];
   }
 }
+// Keeps the photo's proportions (dw/dh === iw/ih) unless the user chose "stretch".
 export function placeMedia(tile, tw, th, iw, ih, scale, fx, fy) {
+  if (tile.fit === "stretch") return [0, 0, tw, th];
   iw = Math.max(1, iw); ih = Math.max(1, ih);
-  const c = tile.fit === "fit" ? Math.min(tw / iw, th / ih) : Math.max(tw / iw, th / ih);
+  const c = coverScale(tile, tw, th, iw, ih);
   const s = c * Math.max(0.1, tile.zoom) * scale;
   const dw = iw * s, dh = ih * s;
   return [-(dw - tw) * fx, -(dh - th) * fy, dw, dh];
+}
+export function coverScale(tile, tw, th, iw, ih) {
+  return tile.fit === "fit" ? Math.min(tw / iw, th / ih) : Math.max(tw / iw, th / ih);
+}
+/** Put image point (cx, cy) at the box centre at zoom z, without leaving gaps. (mirrors timeline.rs place_at) */
+export function placeAt(tile, tw, th, iw, ih, z, cx, cy) {
+  if (tile.fit === "stretch") return [0, 0, tw, th];
+  iw = Math.max(1, iw); ih = Math.max(1, ih);
+  const s = coverScale(tile, tw, th, iw, ih) * Math.max(0.1, z);
+  const dw = iw * s, dh = ih * s;
+  let left = tw / 2 - cx * dw, top = th / 2 - cy * dh;
+  left = dw >= tw ? clamp(left, tw - dw, 0) : (tw - dw) / 2;
+  top = dh >= th ? clamp(top, th - dh, 0) : (th - dh) / 2;
+  return [left, top, dw, dh];
+}
+export function customFrame(tile, p) {
+  if (tile.motion !== "custom" || !tile.kb) return null;
+  const e = easeSine(p), a = tile.kb.from, b = tile.kb.to;
+  const z0 = Math.max(0.1, a.z), z1 = Math.max(0.1, b.z);
+  return [z0 * Math.pow(z1 / z0, e), a.x + (b.x - a.x) * e, a.y + (b.y - a.y) * e];
+}
+/** Where the media sits in its box. animated=false shows the still/editing view. */
+export function tileFrame(tile, p, isVideo, tw, th, iw, ih, animated = true) {
+  if (tile.motion === "custom" && tile.kb) {
+    const [z, cx, cy] = animated ? customFrame(tile, p) : [tile.kb.from.z, tile.kb.from.x, tile.kb.from.y];
+    return placeAt(tile, tw, th, iw, ih, z, cx, cy);
+  }
+  const [scale, fx, fy] = animated ? motion(tile, p, isVideo) : [1, tile.focusX, tile.focusY];
+  return placeMedia(tile, tw, th, iw, ih, scale, fx, fy);
 }
 export function textAnim(kind, lt) {
   if (kind === "none") return [1, 0];

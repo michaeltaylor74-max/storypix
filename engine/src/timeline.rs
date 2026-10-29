@@ -116,17 +116,81 @@ pub fn motion(tile: &Tile, p: f64, is_video: bool) -> (f64, f64, f64) {
 }
 
 /// Geometry of media inside a tile, in tile-local pixels.
-/// Returns (left, top, drawn_w, drawn_h).
+/// Returns (left, top, drawn_w, drawn_h). Always keeps the media's proportions
+/// (dw/dh == iw/ih) unless the user explicitly chose fit == "stretch".
 pub fn place_media(tile: &Tile, tw: f64, th: f64, iw: f64, ih: f64, scale: f64, fx: f64, fy: f64) -> (f64, f64, f64, f64) {
+    if tile.fit == "stretch" {
+        return (0.0, 0.0, tw, th);
+    }
     let iw = iw.max(1.0);
     let ih = ih.max(1.0);
-    let c = if tile.fit == "fit" { (tw / iw).min(th / ih) } else { (tw / iw).max(th / ih) };
+    let c = cover_scale(tile, tw, th, iw, ih);
     let s = c * tile.zoom.max(0.1) * scale;
     let dw = iw * s;
     let dh = ih * s;
     let ox = dw - tw;
     let oy = dh - th;
     (-ox * fx, -oy * fy, dw, dh)
+}
+
+fn cover_scale(tile: &Tile, tw: f64, th: f64, iw: f64, ih: f64) -> f64 {
+    if tile.fit == "fit" {
+        (tw / iw).min(th / ih)
+    } else {
+        (tw / iw).max(th / ih)
+    }
+}
+
+/// Place media so image point (cx, cy) sits at the box centre at zoom z,
+/// never leaving gaps when the photo is bigger than the box.
+pub fn place_at(tile: &Tile, tw: f64, th: f64, iw: f64, ih: f64, z: f64, cx: f64, cy: f64) -> (f64, f64, f64, f64) {
+    if tile.fit == "stretch" {
+        return (0.0, 0.0, tw, th);
+    }
+    let iw = iw.max(1.0);
+    let ih = ih.max(1.0);
+    let s = cover_scale(tile, tw, th, iw, ih) * z.max(0.1);
+    let dw = iw * s;
+    let dh = ih * s;
+    let mut left = tw / 2.0 - cx * dw;
+    let mut top = th / 2.0 - cy * dh;
+    left = if dw >= tw { left.clamp(tw - dw, 0.0) } else { (tw - dw) / 2.0 };
+    top = if dh >= th { top.clamp(th - dh, 0.0) } else { (th - dh) / 2.0 };
+    (left, top, dw, dh)
+}
+
+/// Current framing for a custom zoom path at progress p: (zoom, cx, cy).
+pub fn custom_frame(tile: &Tile, p: f64) -> Option<(f64, f64, f64)> {
+    if tile.motion != "custom" {
+        return None;
+    }
+    let kb = tile.kb?;
+    let e = ease_in_out_sine(p);
+    let (a, b) = (kb.from, kb.to);
+    let z0 = a.z.max(0.1);
+    let z1 = b.z.max(0.1);
+    let z = z0 * (z1 / z0).powf(e);
+    Some((z, a.x + (b.x - a.x) * e, a.y + (b.y - a.y) * e))
+}
+
+/// Full placement for a tile at progress p (animated) — used by the export renderer.
+pub fn tile_frame(tile: &Tile, p: f64, is_video: bool, tw: f64, th: f64, iw: f64, ih: f64) -> (f64, f64, f64, f64) {
+    if let Some((z, cx, cy)) = custom_frame(tile, p) {
+        return place_at(tile, tw, th, iw, ih, z, cx, cy);
+    }
+    let (scale, fx, fy) = motion(tile, p, is_video);
+    place_media(tile, tw, th, iw, ih, scale, fx, fy)
+}
+
+/// Largest zoom a tile reaches (used to load images sharp enough).
+pub fn max_zoom(tile: &Tile) -> f64 {
+    if tile.motion == "custom" {
+        if let Some(kb) = tile.kb {
+            return kb.from.z.max(kb.to.z).max(1.0);
+        }
+    }
+    let m = if tile.motion == "none" { 1.0 } else { 1.0 + tile.motion_amount.max(0.0) };
+    m * tile.zoom.max(1.0)
 }
 
 /// Text animation: (alpha, dy in 1080p px)

@@ -251,6 +251,14 @@ pub fn ffprobe(path: &Path) -> Result<ProbeInfo> {
                 }
                 let mut w = s["width"].as_u64().unwrap_or(0) as u32;
                 let mut h = s["height"].as_u64().unwrap_or(0) as u32;
+                // Non-square pixels (anamorphic video): use the true display shape.
+                if let Some((a, b)) = s["sample_aspect_ratio"].as_str().and_then(|r| r.split_once(':')) {
+                    if let (Ok(a), Ok(b)) = (a.parse::<f64>(), b.parse::<f64>()) {
+                        if a > 0.0 && b > 0.0 && (a - b).abs() > 0.001 {
+                            w = ((w as f64 * a / b) / 2.0).round() as u32 * 2;
+                        }
+                    }
+                }
                 let mut rot = s["tags"]["rotate"].as_str().and_then(|r| r.parse::<i64>().ok()).unwrap_or(0);
                 if let Some(sd) = s["side_data_list"].as_array() {
                     for d in sd {
@@ -381,7 +389,7 @@ pub fn make_proxies(item: &MediaItem, cache_dir: &Path) -> Result<Proxies> {
                     .args(["-y", "-ss", &format!("{at:.3}")])
                     .args(["-protocol_whitelist", "file,pipe,fd", "-i"])
                     .arg(path)
-                    .args(["-frames:v", "1", "-vf", "scale=360:360:force_original_aspect_ratio=decrease", "-q:v", "4"])
+                    .args(["-frames:v", "1", "-vf", "scale='trunc(iw*sar/2)*2':ih,setsar=1,scale=360:360:force_original_aspect_ratio=decrease", "-q:v", "4"])
                     .arg(&t)
                     .stdin(Stdio::null())
                     .status()?;
@@ -399,7 +407,7 @@ pub fn make_proxies(item: &MediaItem, cache_dir: &Path) -> Result<Proxies> {
                     .arg(path)
                     .args([
                         "-vf",
-                        "scale=960:960:force_original_aspect_ratio=decrease:force_divisible_by=2,format=yuv420p",
+                        "scale='trunc(iw*sar/2)*2':ih,setsar=1,scale=960:960:force_original_aspect_ratio=decrease:force_divisible_by=2,setsar=1,format=yuv420p",
                         "-c:v",
                         "libx264",
                         "-preset",

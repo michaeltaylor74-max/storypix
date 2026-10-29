@@ -1,5 +1,5 @@
 // Right panel: settings for the selected text box, photo box and slide.
-import { h, toast, slider, select, field } from "./ui.js";
+import { h, toast, slider, select, field, confirmBox } from "./ui.js";
 import { app, on, change, currentSlide, currentTile, currentText, selectedSlides, selectItem, beginGesture, gestureUpdate, endGesture, applyLayout, applyStylePreset, emit } from "./state.js";
 import { TRANSITIONS, MOTIONS, FONTS, LAYOUTS, STYLE_PRESETS, layoutRects, fmtTime, slideKind, newText } from "./model.js";
 import { bestLayout } from "./layoutfit.js";
@@ -7,6 +7,7 @@ import { addTextBox, addPhotoBox } from "./editor.js";
 import { fileSrc } from "./backend.js";
 import { assets } from "./assets.js";
 import { openTrim } from "./trim.js";
+import { openZoomSpot } from "./zoomspot.js";
 
 let root, layoutCount = null;
 
@@ -84,14 +85,29 @@ function tilePanel(s, t) {
     m ? h("button", { class: "btn small", onclick: () => change(() => { t.mediaId = null; }) }, "Clear") : null,
     h("button", { class: "btn small danger", onclick: () => { change(() => { s.tiles = s.tiles.filter((x) => x.id !== t.id); }); selectItem(null); } }, "Delete box")));
   if (m) {
-    kids.push(field("Fit", seg([["fill", "Fill box", "Crop to fill the box"], ["fit", "Whole photo", "Show the entire photo"]], t.fit, (v) => change(() => { t.fit = v; }))));
-    kids.push(slider({ label: "Zoom", min: 1, max: 4, step: 0.01, value: t.zoom, fmt: (v) => `${Math.round(v * 100)}%`, oninput: live((v) => { t.zoom = v; }), onchange: endGesture }));
-    kids.push(h("div", { class: "btn-row" },
-      h("button", { class: `btn small ${app.panMode ? "primary" : ""}`, onclick: () => { app.panMode = !app.panMode; emit("select"); } }, app.panMode ? "✓ Done repositioning" : "✥ Reposition photo"),
-      h("button", { class: "btn small", onclick: () => change(() => { t.focusX = t.focusY = 0.5; t.zoom = 1; }) }, "Reset")));
-    if (!isVideo) {
-      kids.push(field("Motion", select(MOTIONS, t.motion, (v) => change(() => { t.motion = v; }))));
+    kids.push(field("Fit", seg([["fill", "Fill box", "Crop to fill the box (keeps proportions)"], ["fit", "Whole photo", "Show the entire photo (keeps proportions)"], ["stretch", "Stretch", "Squash/stretch to the box shape — distorts the photo"]], t.fit, async (v) => {
+      if (v === "stretch") {
+        const ok = await confirmBox("Stretch this photo?", "Stretching changes the photo's proportions so it fills the box exactly. People and objects will look squashed or stretched. Photos are never stretched unless you choose this.", "Stretch it", true);
+        if (!ok) return;
+      }
+      change(() => { t.fit = v; });
+    })));
+    if (t.fit === "stretch") kids.push(h("div", { class: "note warn" }, "⚠ This photo is stretched to fit and is out of proportion. Choose Fill box or Whole photo to fix it."));
+    if (t.fit !== "stretch") {
+      kids.push(slider({ label: "Zoom", min: 1, max: 4, step: 0.01, value: t.zoom, fmt: (v) => `${Math.round(v * 100)}%`, oninput: live((v) => { t.zoom = v; }), onchange: endGesture }));
+      kids.push(h("div", { class: "btn-row" },
+        h("button", { class: `btn small ${app.panMode ? "primary" : ""}`, onclick: () => { app.panMode = !app.panMode; emit("select"); } }, app.panMode ? "✓ Done repositioning" : "✥ Reposition photo"),
+        h("button", { class: "btn small", onclick: () => change(() => { t.focusX = t.focusY = 0.5; t.zoom = 1; }) }, "Reset")));
+    }
+    const motions = isVideo ? MOTIONS.filter((x) => x.id === "none" || x.id === "custom") : MOTIONS;
+    kids.push(field("Motion", select(motions, t.motion, (v) => {
+      if (v === "custom") openZoomSpot(s, t);
+      else change(() => { t.motion = v; });
+    })));
+    if (t.motion === "custom") kids.push(h("div", { class: "btn-row" }, h("button", { class: "btn small primary", onclick: () => openZoomSpot(s, t) }, "🎯 Edit zoom spot…")));
+    else {
       if (t.motion !== "none") kids.push(slider({ label: "Strength", min: 0.05, max: 0.5, step: 0.01, value: t.motionAmount, fmt: (v) => `${Math.round(v * 100)}%`, oninput: live((v) => { t.motionAmount = v; }), onchange: endGesture }));
+      kids.push(h("div", { class: "btn-row" }, h("button", { class: "btn small", title: "Zoom in on a face or part of the picture", onclick: () => openZoomSpot(s, t) }, "🎯 Zoom to a spot…")));
     }
   }
   kids.push(slider({ label: "Tilt", min: -30, max: 30, step: 0.5, value: t.rotation, fmt: (v) => `${v}°`, oninput: live((v) => { t.rotation = v; }), onchange: endGesture }));

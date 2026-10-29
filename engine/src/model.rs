@@ -145,6 +145,29 @@ pub struct Tile {
     pub trim_end: Option<f64>,
     pub muted: bool,
     pub volume: f64,
+    /// Custom "zoom to a spot" path (used when motion == "custom").
+    pub kb: Option<KbPath>,
+}
+
+/// A framing of the photo: centre point (fractions of the image) and zoom (1 = fills the box).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct KbFrame {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+}
+impl Default for KbFrame {
+    fn default() -> Self {
+        Self { x: 0.5, y: 0.5, z: 1.0 }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct KbPath {
+    pub from: KbFrame,
+    pub to: KbFrame,
 }
 impl Default for Tile {
     fn default() -> Self {
@@ -163,6 +186,7 @@ impl Default for Tile {
             trim_end: None,
             muted: true,
             volume: 1.0,
+            kb: None,
         }
     }
 }

@@ -183,16 +183,18 @@ pub fn render_slide(
         let mut mask = Mask::new(w, h).unwrap();
         mask.fill_path(&path, FillRule::Winding, true, tf);
 
-        let (scale, fx, fy) = timeline::motion(tile, p, is_video);
-        let (left, top, dw, dh) = timeline::place_media(tile, g.w, g.h, media.width as f64, media.height as f64, scale, fx, fy);
         let src: Option<&Pixmap> = if is_video {
             video_frames.get(i).and_then(|f| f.as_deref())
         } else {
             assets.images.get(i).and_then(|a| a.as_deref()).map(|a| &a.pix)
         };
         if let Some(src) = src {
-            let sx = dw / src.width() as f64;
-            let sy = dh / src.height() as f64;
+            // Proportion guard: place using the real pixel shape of what we're drawing,
+            // so a photo can never be squashed/stretched by wrong metadata.
+            let (iw, ih) = (src.width() as f64, src.height() as f64);
+            let (left, top, dw, dh) = timeline::tile_frame(tile, p, is_video, g.w, g.h, iw, ih);
+            let sx = dw / iw;
+            let sy = if tile.fit == "stretch" { dh / ih } else { sx };
             let t = tf.pre_translate(left as f32, top as f32).pre_scale(sx as f32, sy as f32);
             let quality = if (sx - 1.0).abs() < 1e-3 && (sy - 1.0).abs() < 1e-3 && tile.rotation == 0.0 {
                 FilterQuality::Nearest

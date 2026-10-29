@@ -126,7 +126,8 @@ fn even(x: f64) -> u32 {
 fn video_size(slide: &Slide, ti: usize, project: &Project, w: u32, h: u32) -> Option<(u32, u32)> {
     let tile = &slide.tiles[ti];
     let m = project.media(tile.media_id.as_deref()?)?;
-    let (dw, dh) = render::media_draw_size(tile, m.width as f64, m.height as f64, w as f64, h as f64, 1.0);
+    let extra = if tile.motion == "custom" { timeline::max_zoom(tile) / tile.zoom.max(1.0) } else { 1.0 };
+    let (dw, dh) = render::media_draw_size(tile, m.width as f64, m.height as f64, w as f64, h as f64, extra);
     // cap extreme zooms to keep memory sane
     let cap = 4096.0;
     let s = (cap / dw.max(dh)).min(1.0);
@@ -138,7 +139,7 @@ fn video_frame_for_blur(path: &Path, at: f64) -> Option<image::DynamicImage> {
         .args(["-ss", &format!("{:.3}", at.max(0.0))])
         .args(["-protocol_whitelist", "file,pipe,fd", "-i"])
         .arg(path)
-        .args(["-frames:v", "1", "-vf", "scale=400:-2", "-f", "image2pipe", "-vcodec", "png", "-"])
+        .args(["-frames:v", "1", "-vf", "scale='trunc(iw*sar/2)*2':ih,setsar=1,scale=400:-2", "-f", "image2pipe", "-vcodec", "png", "-"])
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()
@@ -155,7 +156,7 @@ pub fn load_slide_assets(project: &Project, slide: &Slide, overlay: Option<&Stri
             if m.kind != "image" {
                 return None;
             }
-            let extra = if tile.motion == "none" { 1.0 } else { 1.0 + tile.motion_amount.max(0.0) };
+            let extra = timeline::max_zoom(tile) / tile.zoom.max(1.0);
             let (dw, dh) = render::media_draw_size(tile, m.width as f64, m.height as f64, w as f64, h as f64, extra);
             let img = media::load_image_scaled(Path::new(&m.path), dw.ceil() as u32 + 2, dh.ceil() as u32 + 2).ok()?;
             let pix = render::pixmap_from_rgba(img.to_rgba8())?;
