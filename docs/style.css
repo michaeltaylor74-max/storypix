@@ -222,3 +222,14 @@ code { font-size: 0.92em; background: #262c55; border-radius: 4px; padding: 0.05
 .guide-end { text-align: left; padding-top: clamp(2rem, 5vw, 3rem); }
 .guide-end p { color: #d6dbf0; margin-bottom: 1.6rem; }
 .nav nav a[aria-current="page"] { color: var(--screen); }
+
+.btn-secondary {
+  display: inline-block; color: var(--screen); font: 700 1.02rem var(--body); text-decoration: none;
+  padding: 0.8rem 1.3rem; border-radius: 10px; border: 2px solid rgba(243, 245, 252, 0.35); margin: 0.2rem 0 0.9rem;
+}
+.btn-secondary:hover { border-color: var(--stage); color: var(--stage); }
+.mac-beta { grid-column: 1; border-top: 1px solid var(--line); padding-top: 1.6rem; }
+.mac-beta h3 { margin-bottom: 0.5rem; }
+.mac-beta p { color: #cfd5ee; }
+.download-grid .warning-help { grid-column: 2; grid-row: 1 / span 2; }
+@media (max-width: 860px) { .mac-beta, .download-grid .warning-help { grid-column: auto; grid-row: auto; } }
