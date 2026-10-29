@@ -69,10 +69,4 @@ done
 lipo -create "$WORK/prefix-arm64/bin/ffmpeg"  "$WORK/prefix-x86_64/bin/ffmpeg"  -output "$OUT/ffmpeg"
 lipo -create "$WORK/prefix-arm64/bin/ffprobe" "$WORK/prefix-x86_64/bin/ffprobe" -output "$OUT/ffprobe"
 cp "$WORK/ffmpeg-src/COPYING.GPLv3" "$OUT/FFMPEG-LICENSE.txt"
-for b in ffmpeg ffprobe; do
-  lipo -info "$OUT/$b"
-  # nothing but Apple's own system libraries may be linked
-  if otool -L "$OUT/$b" | tail -n +2 | grep -v -E '^\s*(/usr/lib/|/System/Library/)'; then echo "$b links a non-system library"; exit 1; fi
-done
-"$OUT/ffmpeg" -hide_banner -encoders | grep -q libx264
-"$OUT/ffmpeg" -hide_banner -version | head -1
+# (checks on the result are in the workflow, so changing them does not force a rebuild)

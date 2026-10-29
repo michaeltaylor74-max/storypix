@@ -132,7 +132,13 @@ jobs:
           cp ffmpeg-mac/ffmpeg  src-tauri/binaries/ffmpeg-universal-apple-darwin
           cp ffmpeg-mac/ffprobe src-tauri/binaries/ffprobe-universal-apple-darwin
           cp ffmpeg-mac/FFMPEG-LICENSE.txt FFMPEG-LICENSE.txt
-          lipo -info src-tauri/binaries/ffmpeg-universal-apple-darwin
+          for b in ffmpeg ffprobe; do
+            lipo -info ffmpeg-mac/$b
+            lipo -info ffmpeg-mac/$b | grep -q "x86_64" && lipo -info ffmpeg-mac/$b | grep -q "arm64"
+            # only Apple's own system libraries may be linked (dependency lines are indented)
+            if otool -L ffmpeg-mac/$b | grep -E '^[[:space:]]' | grep -v -E '^[[:space:]]*(/usr/lib/|/System/Library/)'; then echo "$b links a non-system library"; exit 1; fi
+          done
+          ffmpeg-mac/ffmpeg -hide_banner -encoders | grep -q libx264
           ffmpeg-mac/ffmpeg -hide_banner -version | head -1
 
       - name: Test the video engine on a Mac
