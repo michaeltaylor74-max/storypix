@@ -1,5 +1,5 @@
-//! cargo run --release -p photostory-engine --example render_test -- <media dir> <out.mp4>
-use photostory_engine::{export, media, model::*};
+//! cargo run --release -p storypix-engine --example render_test -- <media dir> <out.mp4>
+use storypix_engine::{export, media, model::*};
 use std::sync::atomic::AtomicBool;
 
 fn main() {

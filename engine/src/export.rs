@@ -204,7 +204,7 @@ pub fn export(req: &ExportRequest, cancel: &AtomicBool, progress: impl Fn(Progre
         return Err(anyhow!("The show has no slides."));
     }
     let frames = (tl.total * fps as f64).ceil() as u64;
-    let tmp = std::env::temp_dir().join(format!("photostory_export_{}", std::process::id()));
+    let tmp = std::env::temp_dir().join(format!("storypix_export_{}", std::process::id()));
     std::fs::create_dir_all(&tmp)?;
     let wav = tmp.join("mix.wav");
 
@@ -254,7 +254,7 @@ pub fn export(req: &ExportRequest, cancel: &AtomicBool, progress: impl Fn(Progre
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
-        .context("Could not start ffmpeg. Is ffmpeg.exe next to PhotoStory?")?;
+        .context("Could not start ffmpeg. Is ffmpeg.exe next to StoryPix?")?;
     let mut stdin = enc.stdin.take().unwrap();
     let mut stderr = enc.stderr.take().unwrap();
     let err_thread = std::thread::spawn(move || {

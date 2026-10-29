@@ -1,8 +1,8 @@
 [package]
-name = "photostory"
-version = "0.4.0"
+name = "storypix"
+version = "0.5.0"
 edition = "2021"
-description = "PhotoStory - photo & video slideshow maker"
+description = "StoryPix - photo & video slideshow maker"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -15,4 +15,4 @@ rfd = "0.15"
 rayon = "1"
 anyhow = "1"
 base64 = "0.22"
-photostory-engine = { path = "../engine" }
+storypix-engine = { path = "../engine" }

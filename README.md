@@ -1,4 +1,6 @@
-# PhotoStory
+# StoryPix
+
+**Website: https://michaeltaylor74-max.github.io/storypix/**
 
 A photo & video slideshow maker for school end-of-year (and any other) shows.
 Built because the commercial options kept crashing and nagging for upgrades.
@@ -6,30 +8,30 @@ Built because the commercial options kept crashing and nagging for upgrades.
 ## Install
 
 Go to **Releases** (right-hand side of the GitHub page) and download the newest
-**PhotoStory-Setup.exe**. Run it. That's it — everything it needs (including the
+**StoryPix-Setup.exe**. Run it. That's it — everything it needs (including the
 ffmpeg video engine) is inside.
 
-No-install option: download **PhotoStory-portable.zip**, unzip anywhere, run `PhotoStory.exe`
+No-install option: download **StoryPix-portable.zip**, unzip anywhere, run `StoryPix.exe`
 (keep `ffmpeg.exe` and `ffprobe.exe` next to it).
 
 ### "isn't commonly downloaded" / "Windows protected your PC"
 
-PhotoStory is free and new, and its installer isn't code-signed yet, so Windows and Edge
+StoryPix is free and new, and its installer isn't code-signed yet, so Windows and Edge
 are cautious about it. This is normal for new free software. To get past the warnings:
 
-1. **In Microsoft Edge**, when the download shows *"PhotoStory-Setup.exe isn't commonly
+1. **In Microsoft Edge**, when the download shows *"StoryPix-Setup.exe isn't commonly
    downloaded"*: hover over it, click **⋯** → **Keep** → **Show more** → **Keep anyway**.
    (Chrome: click **Keep** / **Download anyway** if it asks.)
 2. **When you run it**, if a blue *"Windows protected your PC"* box appears:
    click **More info** → **Run anyway**.
 
-**Only download PhotoStory from this repository's
-[Releases page](https://github.com/michaeltaylor74-max/photostory/releases).**
+**Only download StoryPix from this repository's
+[Releases page](https://github.com/michaeltaylor74-max/storypix/releases).**
 To check your copy is genuine, compare its SHA-256 fingerprint with the one listed in the
 release notes. In PowerShell:
 
 ```powershell
-Get-FileHash .\PhotoStory-Setup.exe
+Get-FileHash .\StoryPix-Setup.exe
 ```
 
 ## Privacy & safety
@@ -43,7 +45,7 @@ Get-FileHash .\PhotoStory-Setup.exe
 
 ## Code signing policy
 
-PhotoStory has applied to the [SignPath Foundation](https://signpath.org) for free code
+StoryPix has applied to the [SignPath Foundation](https://signpath.org) for free code
 signing. **Until that is approved, releases are not code-signed.** Once approved:
 free code signing provided by [SignPath.io](https://signpath.io), certificate by
 [SignPath Foundation](https://signpath.org).
@@ -58,7 +60,7 @@ Every release is built automatically from this repository's source code by GitHu
 unless specifically requested by the user or the person installing or operating it.
 (The installer may download Microsoft's WebView2 runtime if it is missing.)
 
-**Uninstalling:** use Windows *Settings → Apps → Installed apps → PhotoStory → Uninstall*.
+**Uninstalling:** use Windows *Settings → Apps → Installed apps → StoryPix → Uninstall*.
 The portable version can simply be deleted.
 
 ## Quick start
@@ -74,7 +76,7 @@ The portable version can simply be deleted.
 5. **▶ Preview**, then **⬇ Export video** (MP4, 720p–4K).
 
 Your work autosaves every 15 seconds; if the app or PC dies you'll be offered your show back.
-Save with Ctrl+S to keep a `.psproj` file.
+Save with Ctrl+S to keep a `.storypix` file.
 
 ## Features
 

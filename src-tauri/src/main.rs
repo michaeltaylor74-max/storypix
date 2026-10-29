@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use photostory_engine::{export, media, model::MediaItem};
+use storypix_engine::{export, media, model::MediaItem};
 use rayon::prelude::*;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -73,7 +73,7 @@ async fn pick_files(kind: String, window: tauri::WebviewWindow) -> Vec<String> {
         let mut d = rfd::FileDialog::new().set_parent(&window);
         d = match kind.as_str() {
             "audio" => d.add_filter("Music", media::AUDIO_EXT).add_filter("All files", &["*"]),
-            "project" => d.add_filter("PhotoStory project", &["psproj"]),
+            "project" => d.add_filter("StoryPix show", &["storypix", "psproj"]),
             _ => {
                 let all: Vec<&str> = media::IMAGE_EXT.iter().chain(media::VIDEO_EXT.iter()).copied().collect();
                 d.add_filter("Photos & videos", &all)
@@ -107,7 +107,7 @@ async fn pick_save(kind: String, default_name: String, window: tauri::WebviewWin
         let d = if kind == "video" {
             d.add_filter("MP4 video", &["mp4"])
         } else {
-            d.add_filter("PhotoStory project", &["psproj"])
+            d.add_filter("StoryPix show", &["storypix"])
         };
         d.save_file().map(|p| p.to_string_lossy().to_string())
     })
@@ -238,16 +238,16 @@ async fn paths_exist(paths: Vec<String>, allow_network: Option<bool>) -> Vec<Opt
 }
 
 fn is_project_path(path: &str) -> bool {
-    path.to_lowercase().ends_with(".psproj") && media::is_local_media_path(path)
+    { let l = path.to_lowercase(); (l.ends_with(".storypix") || l.ends_with(".psproj")) && media::is_local_media_path(path) }
 }
 
 #[tauri::command]
 fn write_text(path: String, content: String) -> Result<(), String> {
     if !is_project_path(&path) {
-        return Err("Shows can only be saved as .psproj files".into());
+        return Err("Shows can only be saved as .storypix files".into());
     }
     let p = PathBuf::from(&path);
-    let tmp = p.with_extension("psproj.tmp_save");
+    let tmp = PathBuf::from(format!("{path}.tmp_save"));
     std::fs::write(&tmp, content).map_err(|e| e.to_string())?;
     std::fs::rename(&tmp, &p).map_err(|e| e.to_string())
 }
@@ -255,7 +255,7 @@ fn write_text(path: String, content: String) -> Result<(), String> {
 #[tauri::command]
 fn read_text(path: String) -> Result<String, String> {
     if !is_project_path(&path) {
-        return Err("Only .psproj show files can be opened".into());
+        return Err("Only StoryPix show files (.storypix) can be opened".into());
     }
     let len = std::fs::metadata(&path).map_err(|e| e.to_string())?.len();
     if len > 64 * 1024 * 1024 {
@@ -284,7 +284,7 @@ fn clear_autosave(state: State<AppState>) {
 }
 
 fn overlay_dir() -> PathBuf {
-    std::env::temp_dir().join(format!("photostory_overlays_{}", std::process::id()))
+    std::env::temp_dir().join(format!("storypix_overlays_{}", std::process::id()))
 }
 
 #[tauri::command]
@@ -421,8 +421,8 @@ fn main() {
     media::set_tools(media::discover_tools());
     tauri::Builder::default()
         .setup(|app| {
-            let cache_dir = app.path().app_cache_dir().unwrap_or_else(|_| std::env::temp_dir().join("photostory")).join("proxies");
-            let data_dir = app.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir().join("photostory_data"));
+            let cache_dir = app.path().app_cache_dir().unwrap_or_else(|_| std::env::temp_dir().join("storypix")).join("proxies");
+            let data_dir = app.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir().join("storypix_data"));
             let _ = std::fs::create_dir_all(&cache_dir);
             let _ = std::fs::create_dir_all(&data_dir);
             {
@@ -467,5 +467,5 @@ fn main() {
             clear_cache
         ])
         .run(tauri::generate_context!())
-        .expect("error while running PhotoStory");
+        .expect("error while running StoryPix");
 }

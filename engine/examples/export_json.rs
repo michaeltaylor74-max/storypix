@@ -1,5 +1,5 @@
-//! cargo run --release -p photostory-engine --example export_json -- request.json [path-prefix-from path-prefix-to]
-use photostory_engine::{export, media};
+//! cargo run --release -p storypix-engine --example export_json -- request.json [path-prefix-from path-prefix-to]
+use storypix_engine::{export, media};
 use std::sync::atomic::AtomicBool;
 fn main() {
     let a: Vec<String> = std::env::args().collect();

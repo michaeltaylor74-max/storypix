@@ -22,7 +22,7 @@ const undoBtn = h("button", { class: "icon-btn", title: "Undo (Ctrl+Z)", onclick
 const redoBtn = h("button", { class: "icon-btn", title: "Redo (Ctrl+Y)", onclick: redo }, "↷");
 const savedLbl = h("span", { class: "saved muted small" });
 document.getElementById("topbar").append(
-  h("div", { class: "brand" }, h("span", { class: "logo" }, "▣"), "PhotoStory"),
+  h("div", { class: "brand" }, h("span", { class: "logo" }, "▣"), "StoryPix"),
   h("button", { class: "btn ghost", onclick: newShow, title: "New show" }, "New"),
   h("button", { class: "btn ghost", onclick: openShow, title: "Open (Ctrl+O)" }, "Open…"),
   h("button", { class: "btn ghost", onclick: () => saveShow(), title: "Save (Ctrl+S)" }, "Save"),
@@ -45,7 +45,7 @@ function refreshChrome() {
   if (document.activeElement !== nameInput) nameInput.value = app.project.name;
   undoBtn.disabled = !canUndo();
   redoBtn.disabled = !canRedo();
-  document.title = `${app.project.name}${app.dirty ? " •" : ""} — PhotoStory`;
+  document.title = `${app.project.name}${app.dirty ? " •" : ""} — StoryPix`;
   savedLbl.textContent = app.filePath ? (app.dirty ? "unsaved changes" : "saved") : app.project.slides.length ? "not saved yet" : "";
   const s = currentSlide();
   const lbl = document.getElementById("slide-label");
@@ -110,9 +110,9 @@ async function saveShow(as = false) {
   let path = app.filePath;
   if (!path || as) {
     const safe = (app.project.name || "My show").replace(/[\\/:*?"<>|]+/g, "");
-    path = await api.pickSave("project", `${safe}.psproj`);
+    path = await api.pickSave("project", `${safe}.storypix`);
     if (!path) return false;
-    if (!/\.psproj$/i.test(path)) path += ".psproj";
+    if (!/\.(storypix|psproj)$/i.test(path)) path += ".storypix";
   }
   try {
     await api.writeText(path, serialize());
@@ -213,7 +213,7 @@ async function startup() {
   try {
     const info = await api.info();
     if (!info.ffmpeg) {
-      await modal({ title: "Video engine missing", body: h("div", {}, h("p", {}, "PhotoStory couldn't find ffmpeg.exe, which it needs to read videos and make the final video."), h("p", { class: "muted small" }, `Looked for: ${info.ffmpegPath}`), h("p", {}, "Please reinstall PhotoStory using the installer.")), buttons: [{ label: "OK", value: true, primary: true }] });
+      await modal({ title: "Video engine missing", body: h("div", {}, h("p", {}, "StoryPix couldn't find ffmpeg.exe, which it needs to read videos and make the final video."), h("p", { class: "muted small" }, `Looked for: ${info.ffmpegPath}`), h("p", {}, "Please reinstall StoryPix using the installer.")), buttons: [{ label: "OK", value: true, primary: true }] });
     }
   } catch {}
   try {
@@ -225,7 +225,7 @@ async function startup() {
       const when = new Date(a.savedAt).toLocaleString();
       const v = await modal({
         title: "Welcome back",
-        body: h("div", {}, h("p", {}, `PhotoStory has unsaved work from ${when}: “${a.project.name}” (${a.project.slides.length} slides).`), h("p", { class: "muted" }, "Would you like to pick up where you left off?")),
+        body: h("div", {}, h("p", {}, `StoryPix has unsaved work from ${when}: “${a.project.name}” (${a.project.slides.length} slides).`), h("p", { class: "muted" }, "Would you like to pick up where you left off?")),
         buttons: [{ label: "Start fresh", value: false }, { label: "Recover my show", value: true, primary: true }],
       });
       if (v) await loadProject(a.project, a.filePath || null, true);
@@ -311,7 +311,7 @@ function showHelp() {
       h("table", { class: "keys" }, rows.map(([k, v]) => h("tr", {}, h("td", {}, h("kbd", {}, k)), h("td", {}, v)))),
       cacheRow(),
       h("p", { class: "muted small" }, "Uses FFmpeg (ffmpeg.org, GPL-3.0) to read and create video. App code © 2026 Michael Taylor, MIT License."),
-      h("p", { class: "muted small" }, "Your work is saved automatically every few seconds in case anything goes wrong. Save (Ctrl+S) to keep a .psproj file you can reopen or copy to another computer along with the photos.")),
+      h("p", { class: "muted small" }, "Your work is saved automatically every few seconds in case anything goes wrong. Save (Ctrl+S) to keep a .storypix file you can reopen or copy to another computer along with the photos.")),
     buttons: [{ label: "Close", value: true, primary: true }],
   });
 }
