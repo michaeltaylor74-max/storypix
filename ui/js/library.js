@@ -5,6 +5,7 @@ import { api, fileSrc } from "./backend.js";
 import { assets } from "./assets.js";
 import { fmtTime } from "./model.js";
 import { renderMusicPanel } from "./music.js";
+import { FILE_MANAGER, MOD_NAME } from "./platform.js";
 
 let root, tab = "media", filter = "all", sort = "date", lastClicked = null, thumbSize = 96;
 let lastSig = "";
@@ -94,7 +95,7 @@ function render() {
   if (!app.project.media.some((m) => m.kind !== "audio")) {
     grid.append(h("div", { class: "empty" },
       h("div", { class: "big" }, "🖼️"),
-      h("p", {}, "Add photos and videos with the buttons above, or drag files and folders from Explorer straight into this window."),
+      h("p", {}, `Add photos and videos with the buttons above, or drag files and folders from ${FILE_MANAGER} straight into this window.`),
       h("p", { class: "muted" }, "Tip: use ✨ Auto Build to turn a whole folder into a show in one go.")));
   }
   let lastFolder = null;
@@ -133,7 +134,7 @@ function render() {
       contextMenu(e.clientX, e.clientY, [
         { label: "Add to show — one per slide", action: () => addSelected(list, 1) },
         { label: "Add to show — as collage(s)…", action: () => addSelected(list, 0) },
-        m.missing ? null : { label: "Show in Explorer", action: () => api.reveal(m.path) },
+        m.missing ? null : { label: `Show in ${FILE_MANAGER}`, action: () => api.reveal(m.path) },
         "-",
         { label: "Remove from library", action: () => removeSelected() },
       ]);
@@ -159,7 +160,7 @@ function makeSelBar(list) {
       h("button", { class: "btn small primary", onclick: () => addSelected(list, 1) }, "Add as slides"),
       h("button", { class: "btn small", onclick: () => addSelected(list, 0) }, "Add as collage"),
       h("button", { class: "btn small ghost", title: "Clear selection", onclick: () => { app.libSel.clear(); refreshSelection(list); } }, "✕"))
-    : h("div", { class: "sel-bar hint" }, "Click to select · Ctrl/Shift for many · drag onto a slide or the storyboard");
+    : h("div", { class: "sel-bar hint" }, `Click to select · ${MOD_NAME}/Shift for many · drag onto a slide or the storyboard`);
 }
 
 async function addSelected(list, perSlide) {

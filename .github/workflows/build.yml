@@ -1,4 +1,4 @@
-name: Build Windows app
+name: Build StoryPix
 
 # Pushes to main build a test installer (downloadable from the run's "Artifacts").
 # Pushing a version tag such as v0.3.0 builds AND publishes a public release.
@@ -22,6 +22,9 @@ env:
   FFMPEG_VERSION: "9.0.2"
   FFMPEG_SHA256: "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba"
   TAURI_CLI_VERSION: "2.12.4"
+  # Mac: ffmpeg is built from source at these exact commits (see .github/scripts/build-ffmpeg-macos.sh)
+  MAC_FFMPEG_COMMIT: "946fcce07b6dcd0331c8cc609192aeff5e1924f8" # FFmpeg n9.0.2
+  MAC_X264_COMMIT: "31e19f92f00c7003fa115047ce50978bc98c3a0d"   # x264 stable
 
 jobs:
   build:
@@ -78,10 +81,100 @@ jobs:
           name: StoryPix-windows
           path: dist/*
 
+  build-mac:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain (Apple Silicon + Intel)
+        run: rustup toolchain install 1.97.0 --profile minimal --target aarch64-apple-darwin --target x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Restore ffmpeg build
+        id: ffcache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ffmpeg-mac
+          key: ffmpeg-mac-${{ env.MAC_FFMPEG_COMMIT }}-${{ env.MAC_X264_COMMIT }}-${{ hashFiles('.github/scripts/build-ffmpeg-macos.sh') }}
+
+      - name: Build ffmpeg from source (first time only, ~30 min)
+        if: steps.ffcache.outputs.cache-hit != 'true'
+        env:
+          FFMPEG_COMMIT: ${{ env.MAC_FFMPEG_COMMIT }}
+          X264_COMMIT: ${{ env.MAC_X264_COMMIT }}
+        run: |
+          brew install nasm pkg-config
+          .github/scripts/build-ffmpeg-macos.sh ffmpeg-mac
+
+      - name: Add ffmpeg to the app
+        run: |
+          mkdir -p src-tauri/binaries
+          cp ffmpeg-mac/ffmpeg  src-tauri/binaries/ffmpeg-universal-apple-darwin
+          cp ffmpeg-mac/ffprobe src-tauri/binaries/ffprobe-universal-apple-darwin
+          cp ffmpeg-mac/FFMPEG-LICENSE.txt FFMPEG-LICENSE.txt
+          lipo -info src-tauri/binaries/ffmpeg-universal-apple-darwin
+          ffmpeg-mac/ffmpeg -hide_banner -version | head -1
+
+      - name: Test the video engine on a Mac
+        run: |
+          set -e
+          export PATH="$PWD/ffmpeg-mac:$PATH"
+          T=engine-test; mkdir -p $T
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=s=1600x1000 -frames:v 1 $T/land1.jpg
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=s=900x1400 -frames:v 1 $T/port1.jpg
+          ffmpeg -hide_banner -loglevel error -f lavfi -i smptebars=s=1800x1200 -frames:v 1 $T/land2.jpg
+          ffmpeg -hide_banner -loglevel error -f lavfi -i mandelbrot=s=800x800 -frames:v 1 $T/sq1.png
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=s=1280x720:r=30 -f lavfi -i sine=f=440 -t 4 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest $T/clip1.mp4
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=s=720x1280:r=30 -f lavfi -i sine=f=660 -t 3 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest $T/clip2_portrait.mp4
+          ffmpeg -hide_banner -loglevel error -f lavfi -i sine=f=330 -t 10 -c:a libmp3lame $T/song1.mp3 2>/dev/null || ffmpeg -hide_banner -loglevel error -f lavfi -i sine=f=330 -t 10 -c:a aac $T/song1.m4a
+          [ -f $T/song1.mp3 ] || sed -i '' 's/"song1.mp3"/"song1.m4a"/' engine/examples/render_test.rs
+          ffmpeg -hide_banner -loglevel error -f lavfi -i sine=f=550 -t 10 -c:a aac $T/song2.m4a
+          cargo run --locked -p storypix-engine --example render_test -- "$PWD/$T" "$PWD/$T/out.mp4"
+          D=$(ffprobe -v error -show_entries format=duration -of csv=p=0 $T/out.mp4)
+          echo "rendered $D seconds"
+          awk -v d="$D" 'BEGIN { exit !(d > 12) }'
+          git checkout -- engine/examples/render_test.rs
+
+      - name: Build app (universal) + disk image
+        working-directory: src-tauri
+        run: npx --yes "@tauri-apps/cli@${{ env.TAURI_CLI_VERSION }}" build --target universal-apple-darwin -- --locked
+
+      - name: Check the app starts
+        run: |
+          set -e
+          APP=$(ls -d target/universal-apple-darwin/release/bundle/macos/*.app | head -1)
+          ls -l "$APP/Contents/MacOS"
+          for b in "$APP"/Contents/MacOS/*; do lipo -info "$b"; done
+          codesign --verify --deep --verbose=2 "$APP"
+          "$APP/Contents/MacOS/ffmpeg" -hide_banner -version | head -1
+          BIN=$(ls "$APP"/Contents/MacOS/ | grep -v -E '^(ffmpeg|ffprobe)$' | head -1)
+          "$APP/Contents/MacOS/$BIN" & PID=$!
+          sleep 20
+          if ! kill -0 $PID 2>/dev/null; then echo "StoryPix quit straight away"; exit 1; fi
+          kill $PID || true
+          echo "StoryPix started and kept running"
+
+      - name: Package files and checksums
+        run: |
+          set -e
+          mkdir -p dist
+          cp "$(ls target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)" dist/StoryPix-Mac-beta.dmg
+          (cd dist && shasum -a 256 StoryPix-Mac-beta.dmg > SHA256SUMS-mac.txt && cat SHA256SUMS-mac.txt)
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: StoryPix-mac
+          path: dist/*
+
   release:
     # Only version tags (v1.0.0 …) publish a release. This job alone may write.
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_version != '' && github.ref == 'refs/heads/main')
-    needs: build
+    needs: [build, build-mac]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -91,17 +184,31 @@ jobs:
           name: StoryPix-windows
           path: dist
 
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: StoryPix-mac
+          path: dist
+
+      - name: Combine checksums
+        run: |
+          cat dist/SHA256SUMS-mac.txt >> dist/SHA256SUMS.txt
+          rm dist/SHA256SUMS-mac.txt
+          cat dist/SHA256SUMS.txt
+
       - name: Write release notes
         run: |
           {
             echo "**StoryPix-Setup.exe**: installer (recommended)."
             echo "**StoryPix-portable.zip**: no install needed; unzip and run StoryPix.exe."
+            echo "**StoryPix-Mac-beta.dmg**: Mac beta (macOS 11 or later, Apple Silicon and Intel). Open it and drag StoryPix to Applications."
             echo
             echo "**Seeing a warning?** StoryPix is new and not code-signed yet, so Windows is cautious:"
             echo "- Edge says *isn't commonly downloaded*: hover the download, click **⋯ → Keep → Show more → Keep anyway**."
             echo "- Blue *Windows protected your PC* box: click **More info → Run anyway**."
             echo
-            echo "Only download StoryPix from this Releases page. To check a download is genuine, compare its SHA-256 fingerprint with the list below (PowerShell: \`Get-FileHash .\\StoryPix-Setup.exe\`)."
+            echo "**Mac beta:** the first time, macOS says it can't check StoryPix for malware. Click **Done**, then open **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to StoryPix."
+            echo
+            echo "Only download StoryPix from this Releases page. To check a download is genuine, compare its SHA-256 fingerprint with the list below (Windows PowerShell: \`Get-FileHash .\\StoryPix-Setup.exe\`; Mac Terminal: \`shasum -a 256 StoryPix-Mac-beta.dmg\`)."
             echo
             echo '```'
             cat dist/SHA256SUMS.txt
@@ -129,5 +236,6 @@ jobs:
           files: |
             dist/StoryPix-Setup.exe
             dist/StoryPix-portable.zip
+            dist/StoryPix-Mac-beta.dmg
             dist/SHA256SUMS.txt
           make_latest: true

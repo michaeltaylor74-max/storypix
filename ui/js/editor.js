@@ -5,6 +5,7 @@ import { drawSlide } from "./render.js";
 import { assets } from "./assets.js";
 import { openTrim } from "./trim.js";
 import { newText, newTile, placeMedia, clamp } from "./model.js";
+import { FONT_FALLBACK } from "./platform.js";
 
 let wrap, stage, canvas, overlay, banner, cssW = 0, cssH = 0, dpr = 1;
 let drawQueued = false;
@@ -62,7 +63,7 @@ function draw() {
     ctx.fillStyle = "#6b7280";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = `${Math.round(H / 22)}px "Segoe UI", sans-serif`;
+    ctx.font = `${Math.round(H / 22)}px ${FONT_FALLBACK}`;
     ctx.fillText("Add photos, then double-click one (or drag it to the storyboard) to start.", W / 2, H / 2 - H / 30);
     ctx.fillText("Or press ✨ Auto Build to make a whole show from a folder.", W / 2, H / 2 + H / 30);
     return;

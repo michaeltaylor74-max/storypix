@@ -1,6 +1,7 @@
 // Canvas renderer for editor, thumbnails and preview. Mirrors engine/src/render.rs.
 import { textAnim, frameAt, easeCubic, hash32, clamp, tileFrame } from "./model.js";
 import { assets } from "./assets.js";
+import { FONT_FALLBACK } from "./platform.js";
 
 function roundRectPath(ctx, w, h, r) {
   r = Math.max(0, Math.min(r, w / 2, h / 2));
@@ -88,7 +89,7 @@ export function drawSlide(ctx, project, slide, lt, W, H, mode, mediaById, videoF
         ctx.stroke();
         if (mode === "edit") {
           ctx.fillStyle = "rgba(255,255,255,0.6)";
-          ctx.font = `${Math.max(10, Math.min(g.w, g.h) * 0.09)}px "Segoe UI", sans-serif`;
+          ctx.font = `${Math.max(10, Math.min(g.w, g.h) * 0.09)}px ${FONT_FALLBACK}`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillText("Drop a photo or video here", g.w / 2, g.h / 2);
@@ -164,7 +165,7 @@ export function wrapLines(ctx, text, maxW) {
 }
 
 export function textFont(t, k) {
-  return `${t.italic ? "italic " : ""}${t.bold ? "700" : "400"} ${Math.max(1, t.size * k)}px "${t.font}", "Segoe UI", sans-serif`;
+  return `${t.italic ? "italic " : ""}${t.bold ? "700" : "400"} ${Math.max(1, t.size * k)}px "${t.font}", ${FONT_FALLBACK}`;
 }
 
 export function drawTexts(ctx, texts, W, H, alpha = 1, dy = 0) {

@@ -254,7 +254,7 @@ pub fn export(req: &ExportRequest, cancel: &AtomicBool, progress: impl Fn(Progre
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
-        .context("Could not start ffmpeg. Is ffmpeg.exe next to StoryPix?")?;
+        .context("Could not start ffmpeg, the video engine that comes with StoryPix. Try reinstalling StoryPix.")?;
     let mut stdin = enc.stdin.take().unwrap();
     let mut stderr = enc.stderr.take().unwrap();
     let err_thread = std::thread::spawn(move || {

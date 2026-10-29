@@ -5,6 +5,7 @@ import { api } from "./backend.js";
 import { uid, newSlide, newTitleSlide, layoutById, fmtTime, TRANSITION_SETS, STYLE_PRESETS, computeTimeline } from "./model.js";
 import { bestLayout } from "./layoutfit.js";
 import { fitShowTo } from "./music.js";
+import { key } from "./platform.js";
 
 function mulberry32(a) {
   return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -429,7 +430,7 @@ function renderSummary(el, rr) {
 async function commit() {
   const p = plan();
   if (!p.slides.length) return;
-  if (W.mode === "replace" && app.project.slides.length && !(await confirmBox("Replace slides?", `This replaces your current ${app.project.slides.length} slide(s) with the new show. (You can undo with Ctrl+Z.)`, "Replace"))) return;
+  if (W.mode === "replace" && app.project.slides.length && !(await confirmBox("Replace slides?", `This replaces your current ${app.project.slides.length} slide(s) with the new show. (You can undo with ${key("Z")}.)`, "Replace"))) return;
   // add media to the library and remap temporary ids
   const used = new Set(p.slides.flatMap((s) => s.tiles.map((t) => t.mediaId)).filter(Boolean));
   const items = [...p.mb.values()].filter((m) => used.has(m.id));

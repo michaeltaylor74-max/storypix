@@ -1,7 +1,7 @@
 // Right panel: settings for the selected text box, photo box and slide.
 import { h, toast, slider, select, field, confirmBox } from "./ui.js";
 import { app, on, change, currentSlide, currentTile, currentText, selectedSlides, selectItem, beginGesture, gestureUpdate, endGesture, applyLayout, applyStylePreset, emit } from "./state.js";
-import { TRANSITIONS, MOTIONS, FONTS, LAYOUTS, STYLE_PRESETS, layoutRects, fmtTime, slideKind, newText } from "./model.js";
+import { fontLabel, TRANSITIONS, MOTIONS, FONTS, LAYOUTS, STYLE_PRESETS, layoutRects, fmtTime, slideKind, newText } from "./model.js";
 import { bestLayout } from "./layoutfit.js";
 import { addTextBox, addPhotoBox } from "./editor.js";
 import { fileSrc } from "./backend.js";
@@ -51,7 +51,7 @@ function textPanel(s, t) {
   const bgVal = !t.bg ? "none" : t.bg.startsWith("rgba(0,0,0") ? "dark" : t.bg.startsWith("rgba(255,255,255") ? "light" : "custom";
   return section("✎ Text",
     ta,
-    field("Font", select(FONTS.map((f) => ({ id: f, label: f })), t.font, (v) => change(() => { t.font = v; }))),
+    field("Font", select([...new Set([...FONTS, t.font])].map((f) => ({ id: f, label: fontLabel(f) })), t.font, (v) => change(() => { t.font = v; }))),
     slider({ label: "Size", min: 16, max: 240, step: 1, value: t.size, fmt: (v) => `${v}`, oninput: live((v) => { t.size = v; }), onchange: endGesture }),
     h("div", { class: "row" }, h("span", { class: "lbl" }, "Colour"),
       h("input", { type: "color", value: t.color, oninput: live((e) => { t.color = e.target.value; }), onchange: endGesture }),

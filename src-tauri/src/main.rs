@@ -358,7 +358,12 @@ fn reveal(path: String) {
         use std::os::windows::process::CommandExt;
         let _ = std::process::Command::new("explorer").raw_arg(format!("/select,\"{}\"", path)).spawn();
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        // Finder, with the file selected
+        let _ = std::process::Command::new("/usr/bin/open").arg("-R").arg(&path).spawn();
+    }
+    #[cfg(all(not(windows), not(target_os = "macos")))]
     {
         let _ = std::process::Command::new("xdg-open")
             .arg(Path::new(&path).parent().unwrap_or(Path::new("/")))
@@ -377,7 +382,11 @@ fn open_path(path: String) {
     {
         let _ = std::process::Command::new("explorer").arg(&path).spawn();
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("/usr/bin/open").arg(&path).spawn();
+    }
+    #[cfg(all(not(windows), not(target_os = "macos")))]
     {
         let _ = std::process::Command::new("xdg-open").arg(&path).spawn();
     }

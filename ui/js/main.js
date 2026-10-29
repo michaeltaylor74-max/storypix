@@ -13,19 +13,20 @@ import { initPlayer, toggle as togglePlay, stop as stopPlay } from "./player.js"
 import { openAutoBuild, resetAutoBuild } from "./autobuild.js";
 import { openExport } from "./export.js";
 import { addMusicFiles } from "./music.js";
+import { IS_MAC, key } from "./platform.js";
 
 const AUDIO_RE = /\.(mp3|wav|m4a|aac|flac|ogg|wma|aiff?|opus)$/i;
 
 // ---------- top bar
 const nameInput = h("input", { class: "proj-name", value: app.project.name, title: "Show name", onchange: (e) => change((p) => { p.name = e.target.value || "Untitled show"; }) });
-const undoBtn = h("button", { class: "icon-btn", title: "Undo (Ctrl+Z)", onclick: undo }, "↶");
-const redoBtn = h("button", { class: "icon-btn", title: "Redo (Ctrl+Y)", onclick: redo }, "↷");
+const undoBtn = h("button", { class: "icon-btn", title: `Undo (${key("Z")})`, onclick: undo }, "↶");
+const redoBtn = h("button", { class: "icon-btn", title: `Redo (${IS_MAC ? "⇧⌘Z" : "Ctrl+Y"})`, onclick: redo }, "↷");
 const savedLbl = h("span", { class: "saved muted small" });
 document.getElementById("topbar").append(
   h("div", { class: "brand" }, h("span", { class: "logo" }, "▣"), "StoryPix"),
   h("button", { class: "btn ghost", onclick: newShow, title: "New show" }, "New"),
-  h("button", { class: "btn ghost", onclick: openShow, title: "Open (Ctrl+O)" }, "Open…"),
-  h("button", { class: "btn ghost", onclick: () => saveShow(), title: "Save (Ctrl+S)" }, "Save"),
+  h("button", { class: "btn ghost", onclick: openShow, title: `Open (${key("O")})` }, "Open…"),
+  h("button", { class: "btn ghost", onclick: () => saveShow(), title: `Save (${key("S")})` }, "Save"),
   h("button", { class: "btn ghost", onclick: () => saveShow(true) }, "Save as…"),
   h("span", { class: "sep" }), undoBtn, redoBtn, h("span", { class: "sep" }),
   nameInput, savedLbl,
@@ -213,7 +214,7 @@ async function startup() {
   try {
     const info = await api.info();
     if (!info.ffmpeg) {
-      await modal({ title: "Video engine missing", body: h("div", {}, h("p", {}, "StoryPix couldn't find ffmpeg.exe, which it needs to read videos and make the final video."), h("p", { class: "muted small" }, `Looked for: ${info.ffmpegPath}`), h("p", {}, "Please reinstall StoryPix using the installer.")), buttons: [{ label: "OK", value: true, primary: true }] });
+      await modal({ title: "Video engine missing", body: h("div", {}, h("p", {}, "StoryPix couldn't find its video engine (ffmpeg), which it needs to read videos and make the final video."), h("p", { class: "muted small" }, `Looked for: ${info.ffmpegPath}`), h("p", {}, "Please reinstall StoryPix using the installer.")), buttons: [{ label: "OK", value: true, primary: true }] });
     }
   } catch {}
   try {
@@ -300,8 +301,8 @@ function cacheRow() {
 
 function showHelp() {
   const rows = [
-    ["Space", "Play / pause preview"], ["Ctrl+Z / Ctrl+Y", "Undo / redo"], ["Ctrl+S", "Save"], ["Ctrl+O", "Open"], ["Ctrl+E", "Export video"],
-    ["Ctrl+D", "Duplicate selected slides"], ["Delete", "Remove the selected text / photo / slides"], ["← →", "Previous / next slide (or nudge the selected box)"],
+    ["Space", "Play / pause preview"], [IS_MAC ? "⌘Z / ⇧⌘Z" : "Ctrl+Z / Ctrl+Y", "Undo / redo"], [key("S"), "Save"], [key("O"), "Open"], [key("E"), "Export video"],
+    [key("D"), "Duplicate selected slides"], ["Delete", "Remove the selected text / photo / slides"], ["← →", "Previous / next slide (or nudge the selected box)"],
     ["Shift + drag corner", "Resize keeping shape"], ["Alt + drag", "Move without snapping"], ["Double-click photo", "Reposition / zoom the photo inside its box"], ["Esc", "Stop / finish"],
   ];
   modal({
@@ -311,7 +312,7 @@ function showHelp() {
       h("table", { class: "keys" }, rows.map(([k, v]) => h("tr", {}, h("td", {}, h("kbd", {}, k)), h("td", {}, v)))),
       cacheRow(),
       h("p", { class: "muted small" }, "Uses FFmpeg (ffmpeg.org, GPL-3.0) to read and create video. App code © 2026 Michael Taylor, MIT License."),
-      h("p", { class: "muted small" }, "Your work is saved automatically every few seconds in case anything goes wrong. Save (Ctrl+S) to keep a .storypix file you can reopen or copy to another computer along with the photos.")),
+      h("p", { class: "muted small" }, `Your work is saved automatically every few seconds in case anything goes wrong. Save (${key("S")}) to keep a .storypix file you can reopen or copy to another computer along with the photos.`)),
     buttons: [{ label: "Close", value: true, primary: true }],
   });
 }

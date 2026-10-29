@@ -14,6 +14,23 @@ ffmpeg video engine) is inside.
 No-install option: download **StoryPix-portable.zip**, unzip anywhere, run `StoryPix.exe`
 (keep `ffmpeg.exe` and `ffprobe.exe` next to it).
 
+### Mac (beta)
+
+Download **StoryPix-Mac-beta.dmg** (macOS 11 Big Sur or later, Apple Silicon or Intel),
+open it and drag **StoryPix** into **Applications**.
+
+The Mac version isn't signed by Apple yet, so the first time you open it macOS says it
+can't check StoryPix for malware:
+
+1. Click **Done** (not *Move to Bin*).
+2. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway**
+   next to the StoryPix message. Confirm with your password.
+
+After that it opens normally. If macOS ever says the app *is damaged*, open **Terminal** and run
+`xattr -dr com.apple.quarantine /Applications/StoryPix.app`, then open it again.
+
+The Mac version is new — please [report anything odd](https://github.com/michaeltaylor74-max/storypix/issues).
+
 ### "isn't commonly downloaded" / "Windows protected your PC"
 
 StoryPix is free and new, and its installer isn't code-signed yet, so Windows and Edge
@@ -33,6 +50,8 @@ release notes. In PowerShell:
 ```powershell
 Get-FileHash .\StoryPix-Setup.exe
 ```
+
+On a Mac, in Terminal: `shasum -a 256 ~/Downloads/StoryPix-Mac-beta.dmg`
 
 ## Privacy & safety
 
@@ -61,7 +80,7 @@ unless specifically requested by the user or the person installing or operating 
 (The installer may download Microsoft's WebView2 runtime if it is missing.)
 
 **Uninstalling:** use Windows *Settings → Apps → Installed apps → StoryPix → Uninstall*.
-The portable version can simply be deleted.
+The portable version can simply be deleted. On a Mac, drag StoryPix from Applications to the Bin.
 
 ## Quick start
 
@@ -106,3 +125,7 @@ every push to `main` (download it from the run's *Artifacts*) and publishes a pu
 release when a version tag such as `v0.3.0` is pushed. All build tools and the bundled
 ffmpeg are pinned to exact versions, and ffmpeg's download is checked against a known
 SHA-256 fingerprint.
+
+The Mac build runs on GitHub's macOS machines: ffmpeg and x264 are compiled from source at
+pinned commits (`.github/scripts/build-ffmpeg-macos.sh`), the engine is tested by rendering a
+short video, and the app is built as a universal (Apple Silicon + Intel) `.dmg`.

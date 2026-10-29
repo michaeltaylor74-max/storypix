@@ -1,4 +1,5 @@
 // Project model + shared maths. Mirrors engine/src/model.rs and timeline.rs.
+import { IS_MAC } from "./platform.js";
 
 let _id = Date.now() % 100000;
 export const uid = (p = "x") => `${p}${(_id++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -43,7 +44,11 @@ export const MOTIONS = [
   { id: "custom", label: "🎯 Zoom to a spot (custom)" },
 ];
 
-export const FONTS = ["Segoe UI", "Arial", "Arial Black", "Georgia", "Times New Roman", "Verdana", "Trebuchet MS", "Impact", "Comic Sans MS", "Courier New", "Segoe Script", "Gabriola"];
+export const FONTS = IS_MAC
+  ? ["Segoe UI", "Helvetica Neue", "Avenir Next", "Futura", "Gill Sans", "Arial", "Arial Black", "Georgia", "Baskerville", "Times New Roman", "Verdana", "Trebuchet MS", "Impact", "Comic Sans MS", "Courier New", "Chalkboard SE", "Marker Felt", "Snell Roundhand"]
+  : ["Segoe UI", "Arial", "Arial Black", "Georgia", "Times New Roman", "Verdana", "Trebuchet MS", "Impact", "Comic Sans MS", "Courier New", "Segoe Script", "Gabriola"];
+/** How a font is named in menus ("Segoe UI" is the default; on a Mac it shows as the system font). */
+export const fontLabel = (f) => (IS_MAC && f === "Segoe UI" ? "System (default)" : f);
 
 export const STYLE_PRESETS = {
   clean: { label: "Clean", style: { border: 0, borderColor: "#ffffff", radius: 0, shadow: false } },
