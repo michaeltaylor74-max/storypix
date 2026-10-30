@@ -7,7 +7,10 @@ Built because the commercial options kept crashing and nagging for upgrades.
 
 ## Install
 
-Go to **Releases** (right-hand side of the GitHub page) and download the newest
+**Windows (easiest):** get StoryPix from the **[Microsoft Store](https://apps.microsoft.com/detail/9PNKJMJP633J)**. It's free,
+shows no security warnings, and updates itself.
+
+**Windows, direct download:** go to **Releases** (right-hand side of the GitHub page) and download the newest
 **StoryPix-Setup.exe**. Run it. That's it — everything it needs (including the
 ffmpeg video engine) is inside.
 

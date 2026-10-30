@@ -304,7 +304,9 @@ jobs:
       - name: Write release notes
         run: |
           {
-            echo "**StoryPix-Setup.exe**: installer (recommended)."
+            echo "**Easiest on Windows:** get StoryPix from the [Microsoft Store](https://apps.microsoft.com/detail/9PNKJMJP633J). No warnings, and it updates itself."
+            echo
+            echo "**StoryPix-Setup.exe**: direct-download installer."
             echo "**StoryPix-portable.zip**: no install needed; unzip and run StoryPix.exe."
             if [ -f dist/StoryPix-Mac-beta.dmg ]; then
               echo "**StoryPix-Mac-beta.dmg**: Mac beta (macOS 11 or later, Apple Silicon and Intel). Open it and drag StoryPix to Applications."
