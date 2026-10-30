@@ -129,7 +129,7 @@ jobs:
           if (-not $pkg) { throw "package did not install" }
           Write-Host "Installed $($pkg.PackageFullName)"
           if (-not (Test-Path (Join-Path $pkg.InstallLocation "ffmpeg.exe"))) { throw "ffmpeg.exe missing from package" }
-          & (Join-Path $pkg.InstallLocation "ffmpeg.exe") -hide_banner -version | Select-Object -First 1
+          # (Store apps' files can only be run by the app itself, so ffmpeg isn't run directly here.)
           Start-Process "shell:AppsFolder\$($pkg.PackageFamilyName)!StoryPix"
           Start-Sleep -Seconds 20
           $p = Get-Process -Name StoryPix -ErrorAction SilentlyContinue
