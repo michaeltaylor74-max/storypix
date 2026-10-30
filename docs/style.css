@@ -233,3 +233,8 @@ code { font-size: 0.92em; background: #262c55; border-radius: 4px; padding: 0.05
 .mac-beta p { color: #cfd5ee; }
 .download-grid .warning-help { grid-column: 2; grid-row: 1 / span 2; }
 @media (max-width: 860px) { .mac-beta, .download-grid .warning-help { grid-column: auto; grid-row: auto; } }
+
+.prose { max-width: 780px; }
+.prose h2 { font-size: 1.5rem; margin: 2.2rem 0 0.8rem; }
+.prose ul { padding-left: 1.2rem; }
+.prose li { margin-bottom: 0.6rem; color: #d6dbf0; max-width: var(--measure); }
