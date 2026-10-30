@@ -103,10 +103,16 @@ jobs:
           "SDK_BIN=$($bin.FullName)" | Out-File $env:GITHUB_ENV -Append
           Get-ChildItem store
 
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: StoryPix-microsoft-store
+          path: store/*.msix
+
       - name: Test-install the Store package
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          trap { $m = ($_ | Out-String) -replace "%","%25" -replace "`r","" -replace "`n","%0A"; Write-Host "::error title=Store package test failed::$m"; break }
           # A throw-away certificate, only so Windows will install the package on this build machine.
           $pub = ([xml](Get-Content msix-layout/AppxManifest.xml)).Package.Identity.Publisher
           $cert = New-SelfSignedCertificate -Type Custom -Subject $pub -KeyUsage DigitalSignature -CertStoreLocation Cert:\CurrentUser\My -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
@@ -131,10 +137,6 @@ jobs:
           else { Write-Host "::warning title=Store package::StoryPix installed but did not stay running on the build machine (may be the build machine's desktop); check by hand" }
           Remove-AppxPackage -Package $pkg.PackageFullName
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: StoryPix-microsoft-store
-          path: store/*.msix
 
   build-mac:
     runs-on: macos-latest
