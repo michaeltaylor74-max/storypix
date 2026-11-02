@@ -4,6 +4,7 @@ import { app, netHosts } from "./state.js";
 import { api, listen } from "./backend.js";
 import { computeTimeline, fmtTime, slideKind, musicSchedule } from "./model.js";
 import { drawTexts } from "./render.js";
+import { IS_MAC } from "./platform.js";
 
 let handlers = null;
 let listening = false;
@@ -44,6 +45,11 @@ export async function openExport() {
   const res = h("select", {}, RES.map((r) => h("option", { value: r.id, selected: r.id === lsGet("ps.res", "1920x1080") }, r.label)));
   const fps = h("select", {}, [25, 30, 60].map((f) => h("option", { value: f, selected: String(f) === lsGet("ps.fps", "30") }, `${f} frames/sec${f === 30 ? " (recommended)" : ""}`)));
   const qual = h("select", {}, QUAL.map((q) => h("option", { value: q.id, selected: q.id === lsGet("ps.q", "high") }, q.label)));
+  // Macs: the built-in video hardware is several times faster than software encoding, especially on older Macs.
+  const enc = IS_MAC ? h("select", {}, [
+    ["hardware", "Fast — uses this Mac's video hardware (recommended)"],
+    ["x264", "Smaller file — slower, uses the processor"],
+  ].map(([v, l]) => h("option", { value: v, selected: v === lsGet("ps.enc", "hardware") }, l))) : null;
   const notes = [];
   if (empties) notes.push(h("div", { class: "note warn" }, `⚠ ${empties} photo box(es) are empty and will show only the background.`));
   if (missing) notes.push(h("div", { class: "note warn" }, `⚠ ${missing} file(s) are missing and will be blank.`));
@@ -57,6 +63,7 @@ export async function openExport() {
       h("label", { class: "row" }, h("span", { class: "lbl" }, "Size"), res),
       h("label", { class: "row" }, h("span", { class: "lbl" }, "Frame rate"), fps),
       h("label", { class: "row" }, h("span", { class: "lbl" }, "Quality"), qual),
+      enc ? h("label", { class: "row" }, h("span", { class: "lbl" }, "Speed"), enc) : null,
       h("div", { class: "kv" }, h("span", {}, "Length"), h("b", {}, fmtTime(tl.total))),
       h("p", { class: "muted small" }, "Creates a standard MP4 (H.264 + AAC) that plays on any TV, projector, laptop or YouTube."),
       notes),
@@ -75,17 +82,17 @@ export async function openExport() {
         }
         return true;
       },
-      value: () => ({ path: pathInp.value.trim(), res: res.value, fps: +fps.value, q: qual.value }),
+      value: () => ({ path: pathInp.value.trim(), res: res.value, fps: +fps.value, q: qual.value, enc: enc ? enc.value : "x264" }),
     }],
   });
   if (!go) return;
-  lsSet("ps.lastExport", go.path); lsSet("ps.res", go.res); lsSet("ps.fps", String(go.fps)); lsSet("ps.q", go.q);
+  lsSet("ps.lastExport", go.path); lsSet("ps.res", go.res); lsSet("ps.fps", String(go.fps)); lsSet("ps.q", go.q); if (enc) lsSet("ps.enc", go.enc);
   const [w, hgt] = go.res.split("x").map(Number);
   const q = QUAL.find((x) => x.id === go.q);
-  await runExport({ path: /\.mp4$/i.test(go.path) ? go.path : go.path + ".mp4", w, h: hgt, fps: go.fps, crf: q.crf, preset: q.preset });
+  await runExport({ path: /\.mp4$/i.test(go.path) ? go.path : go.path + ".mp4", w, h: hgt, fps: go.fps, crf: q.crf, preset: q.preset, encoder: go.enc });
 }
 
-async function runExport({ path, w, h: hh, fps, crf, preset }) {
+async function runExport({ path, w, h: hh, fps, crf, preset, encoder = "x264" }) {
   const project = JSON.parse(JSON.stringify(app.project));
   const bar = h("div", { class: "bar-fill" });
   const phase = h("div", { class: "phase" }, "Preparing text…");
@@ -131,7 +138,7 @@ async function runExport({ path, w, h: hh, fps, crf, preset }) {
   });
   try {
     const allowNetwork = !!app.networkAllowed || project.media.every((m) => netHosts.trusted(m.path));
-    await api.startExport({ project, overlays, outPath: path, width: w, height: hh, fps, crf, preset, allowNetwork });
+    await api.startExport({ project, overlays, outPath: path, width: w, height: hh, fps, crf, preset, encoder, allowNetwork });
   } catch (e) {
     closeFn(); toast(`Export failed to start: ${e}`, "error", 8000); return;
   }

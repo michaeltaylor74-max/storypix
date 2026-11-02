@@ -32,6 +32,9 @@ pub struct ExportRequest {
     pub preset: String,
     /// The user has agreed to use files on network shares (\\\\server\\share).
     pub allow_network: bool,
+    /// "x264" (software, best quality per MB), "hardware" (the Mac's video hardware via
+    /// VideoToolbox, much faster on older Macs) or "auto" (hardware on a Mac when available).
+    pub encoder: String,
 }
 impl Default for ExportRequest {
     fn default() -> Self {
@@ -45,6 +48,7 @@ impl Default for ExportRequest {
             crf: 19,
             preset: "medium".into(),
             allow_network: false,
+            encoder: "auto".into(),
         }
     }
 }
@@ -231,16 +235,9 @@ pub fn export(req: &ExportRequest, cancel: &AtomicBool, progress: impl Fn(Progre
             "0:v",
             "-map",
             "1:a",
-            "-c:v",
-            "libx264",
-            "-preset",
-            &req.preset,
-            "-crf",
-            &req.crf.to_string(),
-            "-pix_fmt",
-            "yuv420p",
-            "-profile:v",
-            "high",
+        ])
+        .args(video_codec_args(req, w, h, fps))
+        .args([
             "-c:a",
             "aac",
             "-b:a",
@@ -375,4 +372,59 @@ pub fn export(req: &ExportRequest, cancel: &AtomicBool, progress: impl Fn(Progre
     }
     progress(Progress { phase: "Done".into(), frac: 1.0, frame: frames, frames, eta: 0.0 });
     Ok(())
+}
+
+
+/// True when this ffmpeg can encode H.264 with the Mac's video hardware (VideoToolbox).
+/// Checked once with a tiny test encode; always false on Windows/Linux.
+pub fn hardware_encoder_available() -> bool {
+    static OK: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OK.get_or_init(|| {
+        if !cfg!(target_os = "macos") {
+            return false;
+        }
+        ffmpeg()
+            .args(["-f", "lavfi", "-i", "testsrc2=s=320x180:d=0.2", "-c:v", "h264_videotoolbox", "-allow_sw", "1", "-b:v", "1M", "-f", "null", "-"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    })
+}
+
+/// Video encoder settings for the finished MP4.
+fn video_codec_args(req: &ExportRequest, w: u32, h: u32, fps: u32) -> Vec<String> {
+    let want_hw = match req.encoder.as_str() {
+        "hardware" => true,
+        "x264" => false,
+        _ => cfg!(target_os = "macos"),
+    };
+    if want_hw && hardware_encoder_available() {
+        // Bitrate scaled from ~12 Mbit/s for 1080p30 at "High"; lower CRF = higher quality = more bits.
+        let base = match req.crf {
+            0..=16 => 16.0,
+            17..=19 => 12.0,
+            _ => 8.0,
+        };
+        let scale = (w as f64 * h as f64 * fps as f64) / (1920.0 * 1080.0 * 30.0);
+        let kbps = ((base * scale.max(0.25)) * 1000.0).round() as u64;
+        return vec![
+            "-c:v".into(), "h264_videotoolbox".into(),
+            "-b:v".into(), format!("{kbps}k"),
+            "-maxrate".into(), format!("{}k", kbps * 3 / 2),
+            "-bufsize".into(), format!("{}k", kbps * 2),
+            "-profile:v".into(), "high".into(),
+            "-allow_sw".into(), "1".into(),
+            "-g".into(), (fps * 2).to_string(),
+            "-pix_fmt".into(), "yuv420p".into(),
+        ];
+    }
+    vec![
+        "-c:v".into(), "libx264".into(),
+        "-preset".into(), req.preset.clone(),
+        "-crf".into(), req.crf.to_string(),
+        "-pix_fmt".into(), "yuv420p".into(),
+        "-profile:v".into(), "high".into(),
+    ]
 }

@@ -168,6 +168,7 @@ function tick() {
 
   // music
   const s = p.settings, fo = Math.max(s.musicFadeOut, s.endFade, 0.1);
+  let clockSet = false;
   for (const it of sched.items) {
     const local = t - it.start;
     const on = local >= 0 && local < it.len;
@@ -181,8 +182,13 @@ function tick() {
     g *= envAt(t);
     a.volume = Math.max(0, Math.min(1, g));
     const want = it.track.trimStart + local;
-    if (a.paused) { a.currentTime = want; a.play().catch(() => {}); }
-    else if (Math.abs(a.currentTime - want) > 0.3) a.currentTime = want;
+    if (a.paused) { a.currentTime = want; a.play().catch(() => {}); continue; }
+    // The music is the clock: on a slower computer the pictures may lag behind real time,
+    // so gently pull the show's clock towards the song instead of making the song jump.
+    // Only a big gap (e.g. right after starting or a stall) re-seeks the music.
+    const drift = (a.currentTime - it.track.trimStart) - local;
+    if (Math.abs(drift) > 1.5) a.currentTime = want;
+    else if (!clockSet && !a.seeking && a.readyState >= 3) { startPerf -= drift * 1000 * 0.15; clockSet = true; }
   }
 
   const c = stageCanvas();
