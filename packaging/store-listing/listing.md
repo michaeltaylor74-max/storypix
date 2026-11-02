@@ -19,7 +19,8 @@ StoryPix is free and open source: no account, no watermark, no ads and no in-app
 Made by a teacher, for teachers. Step-by-step guide and a two-minute walkthrough: https://getstorypix.com/guide.html
 
 ## What's new in this version
-First release in the Microsoft Store.
+Colour: give any photo or video a Warm, Cool, Vivid, Faded, Black & white or Old photo look, or fine-tune brightness, contrast, colour strength and warmth — for one photo, a whole slide or the whole show.
+Trimmed video clips now show the part you kept in the storyboard and in Zoom to a spot, not the first frame.
 
 ## Product features (one per line, up to 20)
 Auto Build: turn a folder of photos and videos into a finished show in seconds
@@ -28,6 +29,7 @@ Fits the show to your music, or to a length you choose, and warns when the pace 
 Up to nine photos on a slide, with 25 layouts, frames, rounded corners and polaroid styles
 Slow pan and zoom on every photo, plus Zoom to a spot for faces and details
 Video clips with trimming, and music that dips automatically while a clip plays its sound
+Colour looks and adjustments: warm, cool, vivid, faded, black & white and old photo
 Captions and title cards with fonts, outlines and gentle animations
 Transitions: crossfades, pushes, wipes and more
 Photos are never stretched or squashed unless you choose

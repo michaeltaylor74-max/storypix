@@ -108,7 +108,7 @@ export const rectAspect = (r) => (r.w * W0) / (r.h * H0);
 export function newTile(rect, mediaId = null) {
   return {
     id: uid("t"), rect: { ...rect }, mediaId, fit: "fill", focusX: 0.5, focusY: 0.5, zoom: 1,
-    motion: "none", motionAmount: 0.15, rotation: 0, trimStart: 0, trimEnd: null, muted: true, volume: 1, kb: null,
+    motion: "none", motionAmount: 0.15, rotation: 0, trimStart: 0, trimEnd: null, muted: true, volume: 1, kb: null, grade: null,
   };
 }
 export function newSlide(layoutId = "full", defaults = {}) {
@@ -329,4 +329,49 @@ export function fmtTime(sec, tenths = false) {
   if (!isFinite(sec) || sec < 0) sec = 0;
   const m = Math.floor(sec / 60), s = sec - m * 60;
   return tenths ? `${m}:${s.toFixed(1).padStart(4, "0")}` : `${m}:${String(Math.floor(s)).padStart(2, "0")}`;
+}
+
+// ---------------- colour grading
+// Must match engine/src/model.rs grade_matrix() exactly so the preview looks like the export.
+export const GRADE_LOOKS = [
+  { id: "none", label: "Natural" },
+  { id: "bw", label: "Black & white" },
+  { id: "sepia", label: "Sepia" },
+];
+export const GRADE_PRESETS = [
+  { id: "warm", label: "Warm", grade: { look: "none", brightness: 4, contrast: 6, saturation: 8, warmth: 45 } },
+  { id: "cool", label: "Cool", grade: { look: "none", brightness: 0, contrast: 6, saturation: 0, warmth: -45 } },
+  { id: "vivid", label: "Vivid", grade: { look: "none", brightness: 0, contrast: 18, saturation: 40, warmth: 0 } },
+  { id: "faded", label: "Faded", grade: { look: "none", brightness: 10, contrast: -28, saturation: -30, warmth: 10 } },
+  { id: "bw", label: "Black & white", grade: { look: "bw", brightness: 0, contrast: 12, saturation: 0, warmth: 0 } },
+  { id: "sepia", label: "Old photo", grade: { look: "sepia", brightness: 0, contrast: -6, saturation: 0, warmth: 0 } },
+];
+export const emptyGrade = () => ({ look: "none", brightness: 0, contrast: 0, saturation: 0, warmth: 0 });
+export function isGraded(g) { return !!gradeMatrix(g); }
+
+/** 3x4 row-major colour matrix (r,g,b,offset per channel) on 0..1 sRGB, or null if no change. */
+export function gradeMatrix(g) {
+  if (!g) return null;
+  const cl = (v) => Math.max(-100, Math.min(100, +v || 0));
+  const br = cl(g.brightness), co = cl(g.contrast), sa = cl(g.saturation), wa = cl(g.warmth);
+  const look = g.look;
+  if (!br && !co && !sa && !wa && look !== "bw" && look !== "sepia") return null;
+  const LR = 0.2126, LG = 0.7152, LB = 0.0722, lum = [LR, LG, LB];
+  const L = look === "bw" ? [lum, lum, lum]
+    : look === "sepia" ? [[0.393, 0.769, 0.189], [0.349, 0.686, 0.168], [0.272, 0.534, 0.131]]
+    : [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  const sv = 1 + sa / 100;
+  const S = [0, 1, 2].map((r) => [0, 1, 2].map((c) => (1 - sv) * lum[c] + (r === c ? sv : 0)));
+  const w = (wa / 100) * 0.12, wd = [1 + w, 1, 1 - w];
+  const c = 1 + co / 100, b = (br / 100) * 0.25;
+  const out = new Array(12).fill(0);
+  for (let r = 0; r < 3; r++) {
+    for (let k = 0; k < 3; k++) {
+      let v = 0;
+      for (let j = 0; j < 3; j++) v += S[r][j] * L[j][k];
+      out[r * 4 + k] = c * wd[r] * v;
+    }
+    out[r * 4 + 3] = c * (b - 0.5) + 0.5;
+  }
+  return out;
 }

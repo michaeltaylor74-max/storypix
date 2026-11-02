@@ -163,7 +163,10 @@ pub fn load_slide_assets(project: &Project, slide: &Slide, overlay: Option<&Stri
             let extra = timeline::max_zoom(tile) / tile.zoom.max(1.0);
             let (dw, dh) = render::media_draw_size(tile, m.width as f64, m.height as f64, w as f64, h as f64, extra);
             let img = media::load_image_scaled(Path::new(&m.path), dw.ceil() as u32 + 2, dh.ceil() as u32 + 2).ok()?;
-            let pix = render::pixmap_from_rgba(img.to_rgba8())?;
+            let mut pix = render::pixmap_from_rgba(img.to_rgba8())?;
+            if let Some(gm) = tile.grade.as_ref().and_then(crate::model::grade_matrix) {
+                render::apply_grade(&mut pix, &gm);
+            }
             Some(Arc::new(ImgAsset { pix }))
         })
         .collect();
@@ -318,6 +321,11 @@ pub fn export(req: &ExportRequest, cancel: &AtomicBool, progress: impl Fn(Progre
                         let r = readers.get_mut(&(si, ti)).unwrap();
                         let target = (lt * fps as f64 + 1e-6).floor().max(0.0) as i64;
                         v[ti] = r.advance_to(target);
+                        if let (Some(f), Some(gm)) = (v[ti].as_ref(), tile.grade.as_ref().and_then(crate::model::grade_matrix)) {
+                            let mut g = (**f).clone();
+                            render::apply_grade(&mut g, &gm);
+                            v[ti] = Some(Arc::new(g));
+                        }
                     }
                     map.insert(si, v);
                 }

@@ -1,7 +1,7 @@
 // Right panel: settings for the selected text box, photo box and slide.
 import { h, toast, slider, select, field, confirmBox } from "./ui.js";
 import { app, on, change, currentSlide, currentTile, currentText, selectedSlides, selectItem, beginGesture, gestureUpdate, endGesture, applyLayout, applyStylePreset, emit } from "./state.js";
-import { fontLabel, TRANSITIONS, MOTIONS, FONTS, LAYOUTS, STYLE_PRESETS, layoutRects, fmtTime, slideKind, newText } from "./model.js";
+import { fontLabel, TRANSITIONS, MOTIONS, FONTS, LAYOUTS, STYLE_PRESETS, layoutRects, fmtTime, slideKind, newText, GRADE_LOOKS, GRADE_PRESETS, emptyGrade, isGraded } from "./model.js";
 import { bestLayout } from "./layoutfit.js";
 import { addTextBox, addPhotoBox } from "./editor.js";
 import { fileSrc } from "./backend.js";
@@ -110,6 +110,7 @@ function tilePanel(s, t) {
       kids.push(h("div", { class: "btn-row" }, h("button", { class: "btn small", title: "Zoom in on a face or part of the picture", onclick: () => openZoomSpot(s, t) }, "🎯 Zoom to a spot…")));
     }
   }
+  if (m) kids.push(...colourControls(s, t));
   kids.push(slider({ label: "Tilt", min: -30, max: 30, step: 0.5, value: t.rotation, fmt: (v) => `${v}°`, oninput: live((v) => { t.rotation = v; }), onchange: endGesture }));
   if (isVideo) {
     const end = t.trimEnd ?? m.duration;
@@ -129,6 +130,34 @@ function tilePanel(s, t) {
     } else kids.push(h("p", { class: "muted small" }, "This clip has no sound."));
   }
   return section(isVideo ? "🎬 Video box" : "▣ Photo box", ...kids);
+}
+
+// ---------------- colour grading (per photo / video box)
+function colourControls(s, t) {
+  const g = t.grade || emptyGrade();
+  const ensure = () => (t.grade ||= emptyGrade());
+  const same = (a, b) => ["look", "brightness", "contrast", "saturation", "warmth"].every((k) => (a[k] || 0) === (b[k] || 0));
+  const out = [h("h4", { class: "sub" }, "🎨 Colour")];
+  out.push(h("div", { class: "preset-row" },
+    h("button", { class: `preset ${!isGraded(g) ? "on" : ""}`, title: "Back to the original colours", onclick: () => change(() => { t.grade = null; }) }, "Original"),
+    GRADE_PRESETS.map((p) => h("button", { class: `preset ${same(g, p.grade) ? "on" : ""}`, onclick: () => change(() => { t.grade = { ...p.grade }; }) }, p.label))));
+  out.push(field("Look", seg(GRADE_LOOKS.map((l) => [l.id, l.label]), g.look || "none", (v) => change(() => { ensure().look = v; }))));
+  const sl = (key, label, tip) => slider({ label, min: -100, max: 100, step: 1, value: g[key] || 0, title: tip,
+    fmt: (v) => (v > 0 ? `+${v}` : `${v}`), oninput: live((v) => { ensure()[key] = v; }), onchange: endGesture });
+  out.push(sl("brightness", "Brightness"), sl("contrast", "Contrast"));
+  if (g.look !== "bw") out.push(sl("saturation", "Colour strength", "Left for softer colours, right for richer colours"));
+  out.push(sl("warmth", "Warmth", "Left for cooler (bluer), right for warmer (more golden)"));
+  const copyTo = (tiles) => change(() => { for (const x of tiles) if (x.mediaId) x.grade = t.grade ? { ...t.grade } : null; });
+  out.push(h("div", { class: "btn-row" },
+    s.tiles.filter((x) => x.mediaId).length > 1 ? h("button", { class: "btn small", title: "Give every photo and video on this slide the same colour", onclick: () => copyTo(s.tiles) }, "Use on this whole slide") : null,
+    h("button", { class: "btn small", title: "Give every photo and video in the show the same colour", onclick: async () => {
+      const n = app.project.slides.reduce((a, x) => a + x.tiles.filter((y) => y.mediaId).length, 0);
+      const ok = await confirmBox("Use this colour on every photo?", `This sets the colour of all ${n} photos and videos in the show to match this one. You can undo it.`, "Use on all", false);
+      if (!ok) return;
+      copyTo(app.project.slides.flatMap((x) => x.tiles));
+      toast(isGraded(g) ? "Colour applied to every photo and video" : "Every photo and video is back to its original colours");
+    } }, "Use on every photo")));
+  return out;
 }
 
 // ---------------- slide

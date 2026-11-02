@@ -1,5 +1,5 @@
 // Canvas renderer for editor, thumbnails and preview. Mirrors engine/src/render.rs.
-import { textAnim, frameAt, easeCubic, hash32, clamp, tileFrame } from "./model.js";
+import { textAnim, frameAt, easeCubic, hash32, clamp, tileFrame, gradeMatrix } from "./model.js";
 import { assets } from "./assets.js";
 import { FONT_FALLBACK } from "./platform.js";
 
@@ -14,6 +14,84 @@ function tileTransform(ctx, g, rot, dx = 0, dy = 0) {
   ctx.translate(g.x + g.w / 2 + dx, g.y + g.h / 2 + dy);
   ctx.rotate((rot * Math.PI) / 180);
   ctx.translate(-g.w / 2, -g.h / 2);
+}
+
+// ---- colour grading: an SVG colour-matrix filter used as the canvas filter (same maths as the export)
+const CAN_FILTER = typeof CanvasRenderingContext2D !== "undefined" && "filter" in CanvasRenderingContext2D.prototype;
+const gradeIds = new Map();
+let gradeDefs = null;
+function gradeFilterId(mx) {
+  const key = mx.map((v) => v.toFixed(4)).join(" ");
+  let id = gradeIds.get(key);
+  if (id) return id;
+  const NS = "http://www.w3.org/2000/svg";
+  if (!gradeDefs) {
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("width", "0"); svg.setAttribute("height", "0");
+    svg.setAttribute("aria-hidden", "true");
+    svg.style.position = "absolute";
+    gradeDefs = document.createElementNS(NS, "defs");
+    svg.append(gradeDefs);
+    document.body.append(svg);
+  }
+  id = `spg${gradeIds.size + 1}`;
+  const f = document.createElementNS(NS, "filter");
+  f.id = id;
+  f.setAttribute("color-interpolation-filters", "sRGB");
+  const cm = document.createElementNS(NS, "feColorMatrix");
+  cm.setAttribute("type", "matrix");
+  const r = (i) => `${mx[i * 4].toFixed(5)} ${mx[i * 4 + 1].toFixed(5)} ${mx[i * 4 + 2].toFixed(5)} 0 ${mx[i * 4 + 3].toFixed(5)}`;
+  cm.setAttribute("values", `${r(0)} ${r(1)} ${r(2)} 0 0 0 1 0`);
+  f.append(cm);
+  gradeDefs.append(f);
+  gradeIds.set(key, id);
+  return id;
+}
+// A graded copy of a still picture, cached. Live video is filtered as it's drawn instead.
+const gradedCopies = new WeakMap();
+function gradedCopy(src, mx) {
+  if (src instanceof HTMLVideoElement) return src;
+  const key = mx.join(",");
+  let per = gradedCopies.get(src);
+  if (!per) { per = new Map(); gradedCopies.set(src, per); }
+  let c = per.get(key);
+  if (c) return c;
+  try {
+    const w = src.naturalWidth || src.width, h = src.naturalHeight || src.height;
+    c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const x = c.getContext("2d");
+    if (CAN_FILTER) {
+      // made once with the colour filter, then reused every frame (no pixel reading needed)
+      x.filter = `url(#${gradeFilterId(mx)})`;
+      x.drawImage(src, 0, 0);
+      x.filter = "none";
+      if (per.size > 4) per.delete(per.keys().next().value);
+      per.set(key, c);
+      return c;
+    }
+    x.drawImage(src, 0, 0);
+    const d = x.getImageData(0, 0, w, h), p = d.data;
+    for (let i = 0; i < p.length; i += 4) {
+      const r = p[i] / 255, g = p[i + 1] / 255, b = p[i + 2] / 255;
+      for (let ch = 0; ch < 3; ch++) p[i + ch] = Math.max(0, Math.min(1, mx[ch * 4] * r + mx[ch * 4 + 1] * g + mx[ch * 4 + 2] * b + mx[ch * 4 + 3])) * 255 + 0.5;
+    }
+    x.putImageData(d, 0, 0);
+  } catch { c = src; } // e.g. a protected picture: show it ungraded
+  if (per.size > 4) per.delete(per.keys().next().value);
+  per.set(key, c);
+  return c;
+}
+/** Draw a photo / video frame with the box's colour grade applied. */
+export function drawGraded(ctx, src, grade, ...rect) {
+  const mx = gradeMatrix(grade);
+  if (!mx) return ctx.drawImage(src, ...rect);
+  if (CAN_FILTER && src instanceof HTMLVideoElement) {
+    const prev = ctx.filter;
+    ctx.filter = `url(#${gradeFilterId(mx)})`;
+    ctx.drawImage(src, ...rect);
+    ctx.filter = prev;
+  } else ctx.drawImage(gradedCopy(src, mx), ...rect);
 }
 
 const bgCache = new Map();
@@ -53,8 +131,9 @@ export function drawBackground(ctx, slide, W, H, mode, mediaById) {
     const t = slide.tiles.find((t) => t.mediaId && mediaById.get(t.mediaId));
     if (!t) return;
     const m = mediaById.get(t.mediaId);
-    const img = assets.image(m, "thumb");
-    if (img) ctx.drawImage(blurredBackground(img, m.id, W, H), 0, 0, W, H);
+    const still = m.kind === "video" ? assets.videoStill(m, t.trimStart) : null;
+    const img = still || assets.image(m, "thumb");
+    if (img) ctx.drawImage(blurredBackground(img, still ? `${m.id}@${t.trimStart.toFixed(1)}` : m.id, W, H), 0, 0, W, H);
     return;
   }
   ctx.fillStyle = bg.color || "#000";
@@ -119,13 +198,13 @@ export function drawSlide(ctx, project, slide, lt, W, H, mode, mediaById, videoF
       const v = videoFor(slide, tile);
       if (v && v.readyState >= 2) src = v;
     }
-    if (!src) src = assets.image(m, mode === "thumb" ? "thumb" : "proxy");
+    if (!src) src = isVideo ? assets.videoPoster(m, tile.trimStart, mode === "thumb" ? "thumb" : "proxy") : assets.image(m, mode === "thumb" ? "thumb" : "proxy");
     if (src) {
       // Proportion guard: always place using the real pixel shape of what is drawn.
       const iw = src.videoWidth || src.naturalWidth || src.width || m.width;
       const ih = src.videoHeight || src.naturalHeight || src.height || m.height;
       const [left, top, dw, dh] = tileFrame(tile, p, isVideo, g.w, g.h, iw, ih, animated);
-      ctx.drawImage(src, left, top, dw, dh);
+      drawGraded(ctx, src, tile.grade, left, top, dw, dh);
     } else {
       ctx.fillStyle = "#2a2f3a";
       ctx.fillRect(0, 0, g.w, g.h);

@@ -3,6 +3,7 @@
 import { h, modal, toast } from "./ui.js";
 import { app, change } from "./state.js";
 import { assets } from "./assets.js";
+import { drawGraded } from "./render.js";
 import { coverScale, placeAt, clamp, easeSine, W0, H0 } from "./model.js";
 
 const MAXZ = 6;
@@ -10,9 +11,10 @@ const MAXZ = 6;
 export async function openZoomSpot(slide, tile) {
   const m = app.mediaById.get(tile.mediaId);
   if (!m) return;
-  const img = await loadImage(m);
+  // For a video, show the part of the clip that's actually used (its trimmed start), not frame one.
+  const img = (m.kind === "video" && (await assets.videoStillAsync(m, tile.trimStart))) || (await loadImage(m));
   if (!img) return toast("The preview of this photo isn't ready yet — try again in a moment.", "warn");
-  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
   const tw = tile.rect.w * W0, th = tile.rect.h * H0; // box shape (only the ratio matters)
   const c = coverScale(tile, tw, th, iw, ih);
   // size of the visible window as a fraction of the image, at zoom z
@@ -27,7 +29,11 @@ export async function openZoomSpot(slide, tile) {
   else { from = clampFrame({ x: tile.focusX, y: tile.focusY, z: 1 }); to = clampFrame({ x: 0.5, y: 0.4, z: 2.5 }); }
 
   // ---- big picture with two draggable frames
-  const pic = h("img", { class: "zs-img", src: img.src, draggable: false });
+  let pic;
+  if (img instanceof HTMLCanvasElement) {
+    pic = h("canvas", { class: "zs-img", width: iw, height: ih });
+    pic.getContext("2d").drawImage(img, 0, 0);
+  } else pic = h("img", { class: "zs-img", src: img.src, draggable: false });
   const boxA = h("div", { class: "zs-box start" }, h("span", {}, "START"), h("i", { class: "zs-corner" }));
   const boxB = h("div", { class: "zs-box end" }, h("span", {}, "END"), h("i", { class: "zs-corner" }));
   const stage = h("div", { class: "zs-stage" }, pic, boxA, boxB);
@@ -86,7 +92,7 @@ export async function openZoomSpot(slide, tile) {
     const z = from.z * Math.pow(to.z / from.z, e);
     const [l, t, dw, dh] = placeAt(tile, prev.width, prev.height, iw, ih, z, from.x + (to.x - from.x) * e, from.y + (to.y - from.y) * e);
     ctx.fillStyle = "#000"; ctx.fillRect(0, 0, prev.width, prev.height);
-    ctx.drawImage(img, l, t, dw, dh);
+    drawGraded(ctx, img, tile.grade, l, t, dw, dh);
     raf = requestAnimationFrame(anim);
   };
 

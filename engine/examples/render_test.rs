@@ -39,10 +39,11 @@ fn main() {
     s3.transition.kind = "circle".into();
     s3.background = Background { kind: "gradient".into(), color: "#203040".into(), color2: "#a04060".into() };
     let mut s4 = Slide { id: "s4".into(), duration: 4.0, ..Default::default() };
-    s4.tiles.push(Tile { muted: false, ..tile("m4", 0.0, 0.0, 1.0, 1.0) });
+    // colour grading on a video and a photo (checks the export applies it)
+    s4.tiles.push(Tile { muted: false, grade: Some(Grade { look: "bw".into(), contrast: 12.0, ..Default::default() }), ..tile("m4", 0.0, 0.0, 1.0, 1.0) });
     s4.transition.kind = "mosaic".into();
     let mut s5 = Slide { id: "s5".into(), duration: 3.0, ..Default::default() };
-    s5.tiles.push(Tile { motion: "zoomOut".into(), ..tile("m3", 0.0, 0.0, 1.0, 1.0) });
+    s5.tiles.push(Tile { motion: "zoomOut".into(), grade: Some(Grade { look: "sepia".into(), ..Default::default() }), ..tile("m3", 0.0, 0.0, 1.0, 1.0) });
     s5.transition.kind = "blinds".into();
     p.slides = vec![s1, s2, s3, s4, s5];
     p.music = vec![

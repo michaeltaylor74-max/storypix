@@ -110,6 +110,8 @@ Save with Ctrl+S to keep a `.storypix` file.
 - 19 transitions, Ken Burns pan & zoom, blurred backgrounds behind portrait photos
 - Text boxes with fonts, outline, shadow, backing band, fade / rise animation
 - Music playlist with crossfades, trim, per-song volume, "fit show to music"
+- Colour for each photo or video: Warm, Cool, Vivid, Faded, Black & white and Old photo looks,
+  plus brightness, contrast, colour strength and warmth (copy to a slide or the whole show)
 - Video clips: trim, mute / unmute, volume; music automatically dips under clip sound
   (and you can lower music manually per slide)
 - Auto Build with folder ordering, burst-duplicate skipping and pacing advice

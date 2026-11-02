@@ -377,3 +377,27 @@ pub fn apply_fade(pm: &mut Pixmap, alpha: f64) {
     let a = ((1.0 - alpha).clamp(0.0, 1.0) * 255.0) as u8;
     pm.fill_rect(full, &paint_color([0, 0, 0, a]), Transform::identity(), None);
 }
+
+
+/// Apply a colour grade (see model::grade_matrix) to a premultiplied RGBA pixmap, in place.
+pub fn apply_grade(pix: &mut Pixmap, m: &[f32; 12]) {
+    use rayon::prelude::*;
+    pix.data_mut().par_chunks_mut(4 * 1024).for_each(|chunk| {
+        for px in chunk.chunks_exact_mut(4) {
+            let a = px[3];
+            if a == 0 {
+                continue;
+            }
+            let af = a as f32 / 255.0;
+            let (r, g, b) = if a == 255 {
+                (px[0] as f32 / 255.0, px[1] as f32 / 255.0, px[2] as f32 / 255.0)
+            } else {
+                (px[0] as f32 / 255.0 / af, px[1] as f32 / 255.0 / af, px[2] as f32 / 255.0 / af)
+            };
+            for ch in 0..3 {
+                let v = m[ch * 4] * r + m[ch * 4 + 1] * g + m[ch * 4 + 2] * b + m[ch * 4 + 3];
+                px[ch] = (v.clamp(0.0, 1.0) * af * 255.0 + 0.5) as u8;
+            }
+        }
+    });
+}
